@@ -64,6 +64,7 @@ function ChangeHistory() {
       )
       const center =
         scroller.getBoundingClientRect().left + scroller.clientWidth / 2
+      const firstInput = wheelTarget === null
       if (wheelTarget === null)
         wheelTarget = buttons.reduce((closest, button, index) => {
           const rect = button.getBoundingClientRect()
@@ -80,15 +81,15 @@ function ChangeHistory() {
           : event.deltaMode === 2
             ? scroller.clientWidth
             : 1)
-      wheelDelta += Math.max(-100, Math.min(100, scaledDelta))
+      if (!firstInput) wheelDelta += Math.max(-100, Math.min(100, scaledDelta))
       window.clearTimeout(wheelTimer)
       wheelTimer = window.setTimeout(() => {
         wheelDelta = 0
         wheelTarget = null
       }, 300)
-      if (Math.abs(wheelDelta) < 500) return
-      const direction = Math.sign(wheelDelta)
-      wheelDelta -= direction * 500
+      if (!firstInput && Math.abs(wheelDelta) < 500) return
+      const direction = Math.sign(firstInput ? scaledDelta : wheelDelta)
+      if (!firstInput) wheelDelta -= direction * 500
       const next = Math.max(
         0,
         Math.min(buttons.length - 1, wheelTarget + direction),

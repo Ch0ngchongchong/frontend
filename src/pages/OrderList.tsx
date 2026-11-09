@@ -35,7 +35,7 @@ function OrderList() {
     ORDERS.filter((order) => order.status === status).length
 
   return (
-    <>
+    <div className="order-page">
       <PageHeader title="발주" screen="orders" />
 
       <StatusSummary
@@ -203,7 +203,7 @@ function OrderList() {
           </table>
         </div>
       </section>
-    </>
+    </div>
   )
 }
 

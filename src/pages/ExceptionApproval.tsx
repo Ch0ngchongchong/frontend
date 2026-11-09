@@ -69,7 +69,7 @@ function ExceptionApproval({ photos }: { photos: InspectionPhoto[] }) {
     EXCEPTIONS.find((item) => item.id === selectedId) ?? EXCEPTIONS[0]
 
   return (
-    <>
+    <div className="approval-page">
       <PageHeader title="예외 승인" screen="approval" />
 
       {photos.length > 0 && <AttachedPhotos photos={photos} />}
@@ -186,7 +186,7 @@ function ExceptionApproval({ photos }: { photos: InspectionPhoto[] }) {
           </div>
         </section>
       </div>
-    </>
+    </div>
   )
 }
 

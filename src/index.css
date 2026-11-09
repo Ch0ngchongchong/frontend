@@ -102,12 +102,12 @@ input {
 
 .start-top {
   position: absolute;
-  top: calc(var(--space) * 3);
-  left: calc(var(--space) * 3);
+  top: 3px;
+  left: 0;
   padding: calc(var(--space) * 1.5) calc(var(--space) * 3)
-    calc(var(--space) * 1.5) calc(var(--space) * 1.5);
+    calc(var(--space) * 1.5) 23px;
   border: 1px solid var(--glass-border);
-  border-radius: 999px;
+  border-radius: 0 999px 999px 0;
   background: var(--surface);
   box-shadow: var(--shadow-card);
   backdrop-filter: var(--glass-blur);
@@ -926,6 +926,10 @@ input {
 
 /* 좁은 화면: 탭은 둘째 줄에서 가로로 밀어 본다 */
 @media (max-width: 899px) {
+  .start-top {
+    padding-left: 15px;
+  }
+
   .topbar {
     grid-template-columns: 1fr auto;
     padding: calc(var(--space) * 1.5) calc(var(--space) * 2);
@@ -1858,6 +1862,58 @@ input {
 }
 
 /* 발주 작성 */
+.order-page {
+  display: contents;
+}
+.order-page .card-title svg,
+.order-page .code-cell,
+.order-page .button-text {
+  color: var(--text-muted);
+}
+.order-page .summary-icon.tone-accent {
+  background: var(--text-muted);
+}
+:is(.order-page .data-table, .supplier-row-status, .schedule-body) .pill {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-weight: 800;
+}
+:is(.order-page .data-table, .supplier-row-status, .schedule-body) .pill svg {
+  display: none;
+}
+:is(.order-page .data-table, .supplier-row-status, .schedule-body) .pill-muted {
+  color: #4b5261;
+}
+:is(.order-page .data-table, .supplier-row-status, .schedule-body) .pill-info {
+  color: #193b9d;
+}
+:is(.order-page .data-table, .supplier-row-status, .schedule-body)
+  .pill-accent {
+  color: #8a380c;
+}
+:is(.order-page .data-table, .supplier-row-status, .schedule-body) .pill-owner {
+  color: #795000;
+}
+:is(.order-page .data-table, .supplier-row-status, .schedule-body) .pill-done {
+  color: #0b5060;
+}
+:is(.order-page .data-table, .supplier-row-status, .schedule-body)
+  .pill-danger {
+  color: #9c2020;
+}
+.order-page .button-primary {
+  color: var(--primary);
+  background: var(--accent);
+}
+.order-page .button-primary:hover:not(:disabled),
+.order-page .button-primary:focus-visible {
+  background: #dc5d19;
+}
+.order-page .button-text:hover {
+  color: var(--text);
+}
+
 .order-lines {
   display: flex;
   flex-direction: column;
@@ -2034,6 +2090,38 @@ input {
 }
 
 /* 입고 확인 */
+.inspection-page,
+.approval-page {
+  display: contents;
+}
+:is(.inspection-page, .approval-page) .card-title svg,
+:is(.inspection-page, .approval-page) .data-table .code {
+  color: var(--text-muted);
+}
+.approval-page .pick-item.is-selected {
+  border-color: #aeb4c2;
+  background: #f5f6f8;
+  box-shadow: none;
+}
+.approval-page .kind-row .pill-owner {
+  color: #4b5261;
+  background: var(--track);
+}
+.approval-page .staff-reason {
+  border-color: var(--line);
+  background: #f8f9fb;
+}
+.approval-page .staff-reason figcaption {
+  color: var(--text-muted);
+}
+.approval-page .button-primary {
+  color: var(--primary);
+  background: var(--accent);
+}
+.approval-page .button-primary:hover:not(:disabled),
+.approval-page .button-primary:focus-visible {
+  background: #dc5d19;
+}
 .layout-review,
 .layout-split {
   display: grid;

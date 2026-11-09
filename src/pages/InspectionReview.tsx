@@ -131,7 +131,7 @@ function InspectionReview({
   }
 
   return (
-    <>
+    <div className="inspection-page">
       <PageHeader title="입고 확인" screen="inspection" />
 
       <StatusSummary
@@ -341,7 +341,7 @@ function InspectionReview({
           </button>
         </aside>
       </div>
-    </>
+    </div>
   )
 }
 

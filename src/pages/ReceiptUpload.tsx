@@ -14,11 +14,17 @@ import { INSPECTIONS } from '../mocks/sample.ts'
 
 function ReceiptUpload() {
   const fileRef = useRef<HTMLInputElement>(null)
+  const selectionVersion = useRef(0)
   const [fileMessage, setFileMessage] = useState('')
   const [fileError, setFileError] = useState(false)
+  const waiting = INSPECTIONS.filter((item) => item.status === '업로드 대기')
+  const reading = INSPECTIONS.filter((item) => item.status === '판독 중')
+  const [selectedId, setSelectedId] = useState(waiting[0]?.id)
+  const selected = waiting.find((item) => item.id === selectedId) ?? waiting[0]
 
   async function selectFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
+    const version = ++selectionVersion.current
     event.target.value = ''
     if (!file) return
     setFileError(true)
@@ -33,6 +39,7 @@ function ReceiptUpload() {
     }
     try {
       const header = new Uint8Array(await file.slice(0, 5).arrayBuffer())
+      if (version !== selectionVersion.current) return
       if (
         ![0x25, 0x50, 0x44, 0x46, 0x2d].every(
           (byte, index) => header[index] === byte,
@@ -44,12 +51,10 @@ function ReceiptUpload() {
         'PDF 파일을 확인했어요. 업로드 기능은 아직 연결되지 않았어요.',
       )
     } catch {
+      if (version !== selectionVersion.current) return
       setFileMessage('올바른 PDF 파일을 선택해 주세요.')
     }
   }
-  const waiting = INSPECTIONS.filter((item) => item.status === '업로드 대기')
-  const reading = INSPECTIONS.filter((item) => item.status === '판독 중')
-  const selected = waiting[0]
 
   return (
     <>
@@ -71,7 +76,11 @@ function ReceiptUpload() {
             id="upload-title"
             icon={<Icon name="upload" />}
             title="명세서 올리기"
-            note={`${selected.id} · ${selected.supplier} · 발주 ${selected.orderId}`}
+            note={
+              selected
+                ? `${selected.id} · ${selected.supplier} · 발주 ${selected.orderId}`
+                : '올릴 명세서가 없어요'
+            }
           />
           <div className="dropzone">
             <span className="dropzone-icon" aria-hidden="true">
@@ -91,6 +100,7 @@ function ReceiptUpload() {
               <button
                 type="button"
                 className="button-primary button-upload"
+                disabled={!selected}
                 onClick={() => fileRef.current?.click()}
               >
                 <Icon name="upload" size={20} />
@@ -121,8 +131,14 @@ function ReceiptUpload() {
                 <li key={item.id}>
                   <button
                     type="button"
-                    className={`pick-item${item.id === selected.id ? ' is-selected' : ''}`}
-                    aria-pressed={item.id === selected.id}
+                    className={`pick-item${item.id === selected?.id ? ' is-selected' : ''}`}
+                    aria-pressed={item.id === selected?.id}
+                    onClick={() => {
+                      selectionVersion.current++
+                      setSelectedId(item.id)
+                      setFileMessage('')
+                      setFileError(false)
+                    }}
                   >
                     <span>
                       <strong>{item.supplier}</strong>
