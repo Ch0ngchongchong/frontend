@@ -1,3 +1,4 @@
+import { useRef, useState, type ChangeEvent } from 'react'
 import {
   CardHead,
   Pill,
@@ -12,22 +13,47 @@ import { INSPECTIONS } from '../mocks/sample.ts'
 // 업로드 대기 → 판독 중 → 직원 확인 대기, 판독 실패 시 업로드 대기로 돌아와 다시 올려 달라고 알린다
 
 function ReceiptUpload() {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [fileMessage, setFileMessage] = useState('')
+  const [fileError, setFileError] = useState(false)
+
+  async function selectFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    setFileError(true)
+    if (
+      !file.name.toLowerCase().endsWith('.pdf') ||
+      (file.type && file.type !== 'application/pdf') ||
+      file.size === 0 ||
+      file.size > 10 * 1024 * 1024
+    ) {
+      setFileMessage('10MB 이하의 PDF 파일을 선택해 주세요.')
+      return
+    }
+    try {
+      const header = new Uint8Array(await file.slice(0, 5).arrayBuffer())
+      if (
+        ![0x25, 0x50, 0x44, 0x46, 0x2d].every(
+          (byte, index) => header[index] === byte,
+        )
+      )
+        throw new Error('invalid PDF')
+      setFileError(false)
+      setFileMessage(
+        'PDF 파일을 확인했어요. 업로드 기능은 아직 연결되지 않았어요.',
+      )
+    } catch {
+      setFileMessage('올바른 PDF 파일을 선택해 주세요.')
+    }
+  }
   const waiting = INSPECTIONS.filter((item) => item.status === '업로드 대기')
   const reading = INSPECTIONS.filter((item) => item.status === '판독 중')
-  const failed = waiting.find((item) => item.note)
   const selected = waiting[0]
 
   return (
     <>
       <PageHeader title="명세서 업로드" screen="upload" />
-
-      {failed && (
-        <div className="banner banner-danger" role="alert">
-          <p>
-            {failed.id} · {failed.note}
-          </p>
-        </div>
-      )}
 
       <StatusSummary
         items={[
@@ -51,24 +77,35 @@ function ReceiptUpload() {
             <span className="dropzone-icon" aria-hidden="true">
               <Icon name="upload" size={28} />
             </span>
-            <p className="dropzone-title">
-              거래명세서 사진이나 PDF 파일을 올려 주세요
-            </p>
-            <p className="dropzone-note">
-              사진(JPG·PNG)이나 PDF만 올릴 수 있어요. 글자가 잘리지 않게 한 장
-              전체가 나오게 찍어 주세요
-            </p>
+            <p className="dropzone-title">거래명세서 PDF 파일을 올려 주세요</p>
+            <p className="dropzone-note">PDF 파일만 올릴 수 있어요.</p>
             <div className="dropzone-actions">
-              <button type="button" className="button-primary button-upload">
+              <input
+                ref={fileRef}
+                className="visually-hidden"
+                type="file"
+                accept=".pdf,application/pdf"
+                onChange={selectFile}
+                aria-label="PDF 파일 선택"
+              />
+              <button
+                type="button"
+                className="button-primary button-upload"
+                onClick={() => fileRef.current?.click()}
+              >
                 <Icon name="upload" size={20} />
                 파일 업로드
               </button>
             </div>
+            {fileMessage && (
+              <p
+                className={fileError ? 'field-error' : 'dropzone-note'}
+                role={fileError ? 'alert' : 'status'}
+              >
+                {fileMessage}
+              </p>
+            )}
           </div>
-          <p className="card-note">
-            거래처 담당자 이름·연락처·사업자 정보는 이 기기에서 가린 뒤 보내요.
-            원본 사진은 AI에 보내지 않아요
-          </p>
         </section>
 
         <div className="stack">

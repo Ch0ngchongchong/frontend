@@ -13,6 +13,8 @@ import ReceiptUpload from './pages/ReceiptUpload.tsx'
 import StartScreen from './pages/StartScreen.tsx'
 import SupplierList from './pages/SupplierList.tsx'
 import SupplierPage from './pages/SupplierPage.tsx'
+import MyPage from './pages/MyPage.tsx'
+import { loadProfile, type Profile } from './profile.ts'
 
 // 시작 화면(우리 가게 지도) → '우리 매장으로 가기' 또는 거래처 이름 → 매장 화면.
 // 시작 화면에서 들어갈 때만 매장 화면이 오른쪽에서 밀려 들어온다 (앱 안 탭 이동은 바로 바뀜).
@@ -43,6 +45,8 @@ function App() {
   const [screen, setScreen] = useState<ScreenKey>('products')
   // 거래처 페이지는 탭이 아니라 시작 화면의 거래처 목록에서 연다
   const [supplierId, setSupplierId] = useState<string | null>(null)
+  const [myPage, setMyPage] = useState(false)
+  const [profile, setProfile] = useState<Profile>(loadProfile)
   const [transition, setTransition] = useState<Transition>(null)
   const slideTimer = useRef<number | undefined>(undefined)
   // 빠져나갈 때 매장 화면을 고정 상자로 옮기므로, 보던 스크롤 위치를 그대로 이어 간다
@@ -72,6 +76,7 @@ function App() {
   function leaveStore() {
     setEntered(false)
     setSupplierId(null)
+    setMyPage(false)
     setTransition(null)
   }
 
@@ -90,6 +95,7 @@ function App() {
       slideInFromStart()
       setEntered(true)
       setSupplierId(null)
+      setMyPage(false)
       setScreen(next)
       window.scrollTo(0, 0)
     },
@@ -97,6 +103,7 @@ function App() {
       slideInFromStart()
       setEntered(true)
       setSupplierId(id)
+      setMyPage(false)
       window.scrollTo(0, 0)
     },
   }
@@ -137,11 +144,22 @@ function App() {
           }
         >
           <AppShell
-            current={supplierId ? 'suppliers' : screen}
+            current={myPage ? null : supplierId ? 'suppliers' : screen}
             onNavigate={nav.navigate}
             onHome={nav.goHome}
+            profile={profile}
+            onProfile={() => {
+              setMyPage(true)
+              window.scrollTo(0, 0)
+            }}
           >
-            {supplierId ? <SupplierPage supplierId={supplierId} /> : <Page />}
+            {myPage ? (
+              <MyPage profile={profile} onSave={setProfile} />
+            ) : supplierId ? (
+              <SupplierPage supplierId={supplierId} />
+            ) : (
+              <Page />
+            )}
           </AppShell>
         </div>
       )}

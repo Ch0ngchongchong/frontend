@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchProducts, type Product } from '../api/products.ts'
 import ProductForm from '../components/ProductForm.tsx'
-import { PageHeader, Pill, StatusSummary } from '../components/ui.tsx'
+import { Icon, PageHeader, Pill, StatusSummary } from '../components/ui.tsx'
 
 // 상품 목록·등록 (사장님) 화면 (PRD 5절, DESIGN.md 화면 목록 / US-08 / F-01)
 
@@ -247,9 +247,19 @@ function ProductList() {
           )}
 
           {state.status === 'error' && (
-            <div className="banner banner-danger" role="alert">
-              <p>{state.message}</p>
-              <button type="button" className="button-secondary" onClick={load}>
+            <div className="product-load-error" role="alert">
+              <span className="product-load-error-icon" aria-hidden="true">
+                <Icon name="alert" size={24} />
+              </span>
+              <div className="product-load-error-copy">
+                <strong>상품 목록을 불러오지 못했어요</strong>
+                <p>{state.message}</p>
+              </div>
+              <button
+                type="button"
+                className="product-load-retry"
+                onClick={load}
+              >
                 다시 불러오기
               </button>
             </div>

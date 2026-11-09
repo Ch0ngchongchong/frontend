@@ -255,6 +255,33 @@ function Bot() {
   )
 }
 
+function RouteBot({
+  route,
+  reduceMotion,
+}: {
+  route: (typeof ROUTES)[number]
+  reduceMotion: boolean
+}) {
+  const [sx, sy] = iso(...route.d[0])
+  return (
+    <g transform={reduceMotion ? `translate(${sx} ${sy - 10})` : undefined}>
+      <g transform={reduceMotion ? undefined : 'translate(0 -10)'}>
+        {!reduceMotion && (
+          <animateMotion
+            dur={`${route.dur}s`}
+            repeatCount="indefinite"
+            path={pathOf(route.d)}
+            keyPoints="0;1;1;0;0"
+            keyTimes="0;0.42;0.5;0.92;1"
+            calcMode="linear"
+          />
+        )}
+        <Bot />
+      </g>
+    </g>
+  )
+}
+
 // 카페 위 "우리 가게" 핀 (시작 화면에서는 눌러 보라는 둥근 물결이 퍼진다)
 function StorePin({ pulse }: { pulse: boolean }) {
   const [x, y] = iso(9.5, 9.5, 3.4)
@@ -388,6 +415,11 @@ export function Scene({
       <Block i={1} j={3} w={4} d={3} h={1.2} roof={MUTED_ROOF} panels />
       <Crates i={16.5} j={5} />
 
+      {/* 가게 뒤쪽 경로의 캐릭터는 가게보다 먼저 그린다. */}
+      {ROUTES.slice(0, 3).map((route, n) => (
+        <RouteBot key={n} route={route} reduceMotion={reduceMotion} />
+      ))}
+
       {/* 우리 가게 */}
       <g
         ref={storeRef}
@@ -419,29 +451,44 @@ export function Scene({
       <Crates i={12.5} j={14} />
 
       {/* 길 위를 오가는 배송 상자 캐릭터 */}
-      {ROUTES.map((route, n) => {
-        const [sx, sy] = iso(...route.d[0])
-        return (
-          <g
-            key={n}
-            transform={reduceMotion ? `translate(${sx} ${sy - 10})` : undefined}
-          >
-            <g transform={reduceMotion ? undefined : 'translate(0 -10)'}>
-              {!reduceMotion && (
-                <animateMotion
-                  dur={`${route.dur}s`}
-                  repeatCount="indefinite"
-                  path={pathOf(route.d)}
-                  keyPoints="0;1;1;0;0"
-                  keyTimes="0;0.42;0.5;0.92;1"
-                  calcMode="linear"
-                />
-              )}
-              <Bot />
-            </g>
-          </g>
-        )
-      })}
+      {ROUTES.slice(3).map((route, n) => (
+        <RouteBot key={n} route={route} reduceMotion={reduceMotion} />
+      ))}
+      {!reduceMotion &&
+        ROUTES.map((route, n) => {
+          const [x, y] = iso(...route.d[route.d.length - 1])
+          return (
+            <text
+              key={n}
+              x={x}
+              y={y - 25}
+              textAnchor="middle"
+              fontSize="22"
+              fontWeight="800"
+              fill="#22a65a"
+              opacity="0"
+              pointerEvents="none"
+              aria-hidden="true"
+            >
+              +$
+              <animate
+                attributeName="opacity"
+                dur={`${route.dur}s`}
+                repeatCount="indefinite"
+                values="0;0;1;0;0"
+                keyTimes="0;0.42;0.43;0.5;1"
+              />
+              <animateTransform
+                attributeName="transform"
+                type="translate"
+                dur={`${route.dur}s`}
+                repeatCount="indefinite"
+                values="0 0;0 0;0 -28;0 -28"
+                keyTimes="0;0.42;0.5;1"
+              />
+            </text>
+          )
+        })}
     </svg>
   )
 }

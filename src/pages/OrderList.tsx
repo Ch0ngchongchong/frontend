@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   CardHead,
   StatusSummary,
@@ -16,7 +17,20 @@ const NEXT_ACTION: Record<string, string | undefined> = {
   '발주 확인 완료': '전달 완료 표시',
 }
 
+// 한도 기준이 확정되기 전까지 사용하는 화면 예시 값
+const SAMPLE_LIMITS = [
+  { product: '서울우유 1000ml', limit: 20, unit: '개' },
+  { product: '종이컵 12oz', limit: 10, unit: '박스' },
+  { product: '바닐라 시럽', limit: 12, unit: '병' },
+  { product: '원두 1kg', limit: 10, unit: '봉' },
+]
+
 function OrderList() {
+  const [product, setProduct] = useState('서울우유 1000ml')
+  const [quantity, setQuantity] = useState('30')
+  const limit = SAMPLE_LIMITS.find((item) => item.product === product.trim())
+  const overLimit =
+    limit !== undefined && quantity !== '' && Number(quantity) > limit.limit
   const count = (status: string) =>
     ORDERS.filter((order) => order.status === status).length
 
@@ -118,19 +132,26 @@ function OrderList() {
           <div className="order-lines">
             <p className="field-label">상품과 수량</p>
             <div className="order-line">
-              <input aria-label="상품" defaultValue="서울우유 1000ml" />
+              <input
+                aria-label="상품"
+                value={product}
+                onChange={(event) => setProduct(event.target.value)}
+              />
               <input
                 aria-label="수량"
-                className="input-qty input-warning"
+                className={`input-qty${overLimit ? ' input-warning' : ''}`}
                 type="number"
-                defaultValue={30}
+                value={quantity}
+                onChange={(event) => setQuantity(event.target.value)}
               />
-              <span className="unit">개</span>
+              <span className="unit">{limit?.unit ?? '—'}</span>
             </div>
-            <p className="field-warning">
-              <Icon name="alert" size={16} />이 상품의 수량 한도를 넘었어요.
-              다시 확인해 주세요
-            </p>
+            {overLimit && (
+              <p className="field-warning">
+                <Icon name="alert" size={16} /> 예시 한도 {limit.limit}
+                {limit.unit}를 넘었어요. 다시 확인해 주세요.
+              </p>
+            )}
             <div className="order-line">
               <input aria-label="상품" placeholder="상품 고르기" />
               <input
@@ -151,6 +172,37 @@ function OrderList() {
           </button>
         </section>
       </div>
+      <section
+        className="card order-limits"
+        aria-labelledby="order-limits-title"
+      >
+        <CardHead
+          id="order-limits-title"
+          icon={<Icon name="box" />}
+          title="상품별 발주 한도"
+        />
+        <div className="table-scroll">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th scope="col">상품</th>
+                <th scope="col">발주 한도 (예시)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {SAMPLE_LIMITS.map((item) => (
+                <tr key={item.product}>
+                  <td>{item.product}</td>
+                  <td>
+                    {item.limit}
+                    {item.unit}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </>
   )
 }
