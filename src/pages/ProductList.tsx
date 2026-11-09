@@ -89,6 +89,7 @@ const DOTS = 12
 function ProductList() {
   const [state, setState] = useState<LoadState>({ status: 'loading' })
   const [notice, setNotice] = useState<string | null>(null)
+  const [editing, setEditing] = useState<Product | null>(null)
   const formRef = useRef<HTMLElement>(null)
 
   const load = useCallback(async () => {
@@ -113,8 +114,11 @@ function ProductList() {
     load()
   }, [load])
 
-  function handleCreated(product: Product) {
-    setNotice(`${product.product_code} 상품을 등록했어요`)
+  function handleSaved(product: Product) {
+    setNotice(
+      `${product.product_code} 상품을 ${editing ? '수정' : '등록'}했어요`,
+    )
+    setEditing(null)
     load()
   }
 
@@ -298,6 +302,9 @@ function ProductList() {
                       기준 단가
                     </th>
                     <th scope="col">상태</th>
+                    <th scope="col">
+                      <span className="visually-hidden">상품 수정</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -325,6 +332,23 @@ function ProductList() {
                           </Pill>
                         )}
                       </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="button-small"
+                          onClick={() => {
+                            setNotice(null)
+                            setEditing(product)
+                            formRef.current?.scrollIntoView({
+                              behavior: 'smooth',
+                              block: 'start',
+                            })
+                          }}
+                          aria-label={`${product.name || product.product_code} 수정`}
+                        >
+                          수정
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -342,16 +366,21 @@ function ProductList() {
             <div>
               <h2 id="form-title" className="card-title">
                 <PlusIcon />
-                상품 등록
+                {editing ? '상품 수정' : '상품 등록'}
               </h2>
               <p className="card-note">
-                상품 코드는 꼭 적고, 나머지는 아는 만큼 적어 주세요
+                {editing
+                  ? `${editing.product_code} 상품의 정보를 수정해 주세요`
+                  : '상품 코드는 꼭 적고, 나머지는 아는 만큼 적어 주세요'}
               </p>
             </div>
           </div>
           <ProductForm
+            key={editing?.id ?? 'new'}
             onSubmitStart={() => setNotice(null)}
-            onCreated={handleCreated}
+            onSaved={handleSaved}
+            product={editing ?? undefined}
+            onCancelEdit={() => setEditing(null)}
           />
         </section>
       </div>

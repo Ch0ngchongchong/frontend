@@ -18,8 +18,93 @@ import {
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1)
-// 고를 수 있는 연도: 기준 연도 앞뒤 5년
-const YEARS = Array.from({ length: 11 }, (_, i) => CALENDAR_MONTH.year - 5 + i)
+const LOOP_MONTHS = [...MONTHS, ...MONTHS, ...MONTHS]
+const YEARS = Array.from({ length: 201 }, (_, i) => 1900 + i)
+const WHEEL_ITEM_HEIGHT = 44
+
+function DateWheel({
+  options,
+  value,
+  unit,
+  onChange,
+  onStep,
+}: {
+  options: number[]
+  value: number
+  unit: string
+  onChange: (value: number) => void
+  onStep?: (delta: number) => void
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const indexRef = useRef(options.indexOf(value) + (onStep ? 12 : 0))
+  const [wheelIndex, setWheelIndex] = useState(
+    options.indexOf(value) + (onStep ? 12 : 0),
+  )
+  useEffect(() => {
+    const index = indexRef.current
+    if (ref.current && index >= 0)
+      ref.current.scrollTop = index * WHEEL_ITEM_HEIGHT
+    // 열린 시점의 값에만 맞추고 이후 스크롤은 사용자가 직접 제어한다.
+  }, [])
+  useEffect(() => {
+    if (onStep || !ref.current) return
+    const index = options.indexOf(value)
+    if (
+      index >= 0 &&
+      Math.round(ref.current.scrollTop / WHEEL_ITEM_HEIGHT) !== index
+    )
+      ref.current.scrollTop = index * WHEEL_ITEM_HEIGHT
+  }, [value, options, onStep])
+  return (
+    <div
+      className="picker-column"
+      ref={ref}
+      aria-label={unit === '년' ? '연도 선택' : '월 선택'}
+      onScroll={(event) => {
+        const index = Math.max(
+          0,
+          Math.min(
+            options.length - 1,
+            Math.round(event.currentTarget.scrollTop / WHEEL_ITEM_HEIGHT),
+          ),
+        )
+        if (onStep) {
+          const delta = index - indexRef.current
+          if (!delta) return
+          indexRef.current = index
+          setWheelIndex(index)
+          onStep(delta)
+          if (index < 6 || index >= 30) {
+            const recentered = index + (index < 6 ? 12 : -12)
+            indexRef.current = recentered
+            setWheelIndex(recentered)
+            event.currentTarget.scrollTop = recentered * WHEEL_ITEM_HEIGHT
+          }
+        } else if (options[index] !== value) onChange(options[index])
+      }}
+    >
+      {options.map((option, index) => (
+        <button
+          key={index}
+          type="button"
+          aria-pressed={
+            index === (onStep ? wheelIndex : options.indexOf(value))
+          }
+          className={`picker-option wheel-distance-${Math.min(3, Math.abs(index - (onStep ? wheelIndex : options.indexOf(value))))}`}
+          onClick={() => {
+            ref.current?.scrollTo({
+              top: index * WHEEL_ITEM_HEIGHT,
+              behavior: 'smooth',
+            })
+          }}
+        >
+          {option}
+          {unit}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 function pad(n: number) {
   return String(n).padStart(2, '0')
@@ -49,8 +134,6 @@ function toneOf(entry: CalendarEntry) {
   return 'progress'
 }
 
-type Picker = 'year' | 'month' | null
-
 function DeliveryCalendar() {
   const { today } = CALENDAR_MONTH
   const [view, setView] = useState({
@@ -58,8 +141,9 @@ function DeliveryCalendar() {
     month: CALENDAR_MONTH.month,
   })
   const { year, month } = view
+  const viewRef = useRef(view)
   const [selected, setSelected] = useState('2026-11-02')
-  const [picker, setPicker] = useState<Picker>(null)
+  const [picker, setPicker] = useState(false)
   const pickerRef = useRef<HTMLDivElement>(null)
 
   // 보는 달을 바꾸면, 그 달에 오늘이 있으면 오늘을, 없으면 1일을 고른다
@@ -67,6 +151,7 @@ function DeliveryCalendar() {
     const date = new Date(nextYear, nextMonth - 1, 1)
     const y = date.getFullYear()
     const m = date.getMonth() + 1
+    viewRef.current = { year: y, month: m }
     setView({ year: y, month: m })
     setSelected(today.startsWith(`${y}-${pad(m)}`) ? today : dateKey(y, m, 1))
   }
@@ -75,20 +160,13 @@ function DeliveryCalendar() {
   useEffect(() => {
     if (!picker) return
     function handlePointer(event: MouseEvent) {
-      if (!pickerRef.current?.contains(event.target as Node)) setPicker(null)
+      if (!pickerRef.current?.contains(event.target as Node)) setPicker(false)
     }
     function handleKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') setPicker(null)
+      if (event.key === 'Escape') setPicker(false)
     }
     document.addEventListener('mousedown', handlePointer)
     document.addEventListener('keydown', handleKey)
-    // 연도 목록은 고른 연도가 가운데 보이게 목록 안에서만 스크롤한다 (페이지는 움직이지 않음)
-    const panel = pickerRef.current?.querySelector<HTMLElement>('.picker-years')
-    const current = panel?.querySelector<HTMLElement>('.is-current')
-    if (panel && current) {
-      panel.scrollTop =
-        current.offsetTop - panel.clientHeight / 2 + current.offsetHeight / 2
-    }
     return () => {
       document.removeEventListener('mousedown', handlePointer)
       document.removeEventListener('keydown', handleKey)
@@ -140,76 +218,50 @@ function DeliveryCalendar() {
                   <button
                     type="button"
                     className="month-part"
-                    aria-haspopup="listbox"
-                    aria-expanded={picker === 'year'}
-                    onClick={() => setPicker(picker === 'year' ? null : 'year')}
+                    aria-haspopup="dialog"
+                    aria-expanded={picker}
+                    onClick={() => setPicker(!picker)}
                   >
-                    {year}년
-                    <span className="caret" aria-hidden="true">
-                      ▾
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className="month-part"
-                    aria-haspopup="listbox"
-                    aria-expanded={picker === 'month'}
-                    onClick={() =>
-                      setPicker(picker === 'month' ? null : 'month')
-                    }
-                  >
-                    {month}월
+                    {year}년 {month}월
                     <span className="caret" aria-hidden="true">
                       ▾
                     </span>
                   </button>
                 </h2>
 
-                {picker === 'year' && (
+                {picker && (
                   <div
-                    className="picker-panel picker-years"
-                    role="listbox"
-                    aria-label="연도 고르기"
+                    className="picker-panel picker-date"
+                    role="dialog"
+                    aria-label="연도와 월 고르기"
                   >
-                    {YEARS.map((option) => (
-                      <button
-                        type="button"
-                        role="option"
-                        key={option}
-                        aria-selected={option === year}
-                        className={`picker-option${option === year ? ' is-current' : ''}`}
-                        onClick={() => {
-                          showMonth(option, month)
-                          setPicker(null)
-                        }}
-                      >
-                        {option}년
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {picker === 'month' && (
-                  <div
-                    className="picker-panel picker-months"
-                    role="listbox"
-                    aria-label="달 고르기"
-                  >
-                    {MONTHS.map((option) => (
-                      <button
-                        type="button"
-                        role="option"
-                        key={option}
-                        aria-selected={option === month}
-                        className={`picker-option${option === month ? ' is-current' : ''}`}
-                        onClick={() => {
-                          showMonth(year, option)
-                          setPicker(null)
-                        }}
-                      >
-                        {option}월
-                      </button>
-                    ))}
+                    <div className="picker-columns">
+                      <DateWheel
+                        options={YEARS}
+                        value={year}
+                        unit="년"
+                        onChange={(next) => showMonth(next, month)}
+                      />
+                      <DateWheel
+                        options={LOOP_MONTHS}
+                        value={month}
+                        unit="월"
+                        onChange={(next) => showMonth(year, next)}
+                        onStep={(delta) =>
+                          showMonth(
+                            viewRef.current.year,
+                            viewRef.current.month + delta,
+                          )
+                        }
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      className="picker-done"
+                      onClick={() => setPicker(false)}
+                    >
+                      완료
+                    </button>
                   </div>
                 )}
               </div>

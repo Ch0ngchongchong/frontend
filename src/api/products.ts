@@ -29,6 +29,7 @@ export type ProductErrorCode =
   | 'DUPLICATE_PRODUCT_CODE'
   | 'REQUIRED_FIELD_MISSING'
   | 'INVALID_CONVERSION_QTY'
+  | 'PRODUCT_NOT_FOUND'
   | 'UNKNOWN_ERROR'
 
 export class ApiError extends Error {
@@ -69,6 +70,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
         '서버에 연결할 수 없어요. 서버가 켜져 있는지 확인해 주세요',
       )
     }
+    if (typeof body?.detail === 'string') {
+      throw new ApiError('UNKNOWN_ERROR', body.detail)
+    }
+    if (response.status === 422) {
+      throw new ApiError('UNKNOWN_ERROR', '입력값을 확인해 주세요')
+    }
     throw new ApiError(
       'UNKNOWN_ERROR',
       `요청을 처리하지 못했어요 (${response.status})`,
@@ -85,6 +92,16 @@ export function fetchProducts(): Promise<Product[]> {
 export function createProduct(input: ProductInput): Promise<Product> {
   return request<Product>('/products', {
     method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+export function updateProduct(
+  id: number,
+  input: Partial<ProductInput>,
+): Promise<Product> {
+  return request<Product>(`/products/${id}`, {
+    method: 'PATCH',
     body: JSON.stringify(input),
   })
 }

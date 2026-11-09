@@ -94,6 +94,7 @@ type SummaryItem = {
   status?: string
   tone?: Tone
   icon?: IconName
+  onClick?: () => void
 }
 
 // 상태 요약 칩: 폼·목록 카드 바로 위에 작게 둔다
@@ -104,14 +105,19 @@ export function StatusSummary({ items }: { items: SummaryItem[] }) {
         const style = item.status ? STATUS_STYLE[item.status] : undefined
         const tone = item.tone ?? style?.tone ?? 'muted'
         const icon = item.icon ?? style?.icon ?? 'clock'
+        const Tag = item.onClick ? 'button' : 'span'
         return (
-          <span className="summary-chip" key={item.label}>
+          <Tag
+            className={`summary-chip${item.onClick ? ' summary-chip-button' : ''}`}
+            key={item.label}
+            onClick={item.onClick}
+          >
             <span className={`summary-icon tone-${tone}`} aria-hidden="true">
               <Icon name={icon} size={14} />
             </span>
             {item.label}
             <strong>{item.value}</strong>
-          </span>
+          </Tag>
         )
       })}
     </div>

@@ -1,4 +1,5 @@
-import type { Ref } from 'react'
+import { useMemo, useRef, useState, type Ref } from 'react'
+import { SUPPLIERS } from '../mocks/sample.ts'
 
 // 아이소메트릭 장면: 공급처 건물 5곳(식자재 2·유제품·원두·포장재, PRD 1절)이 길로 우리 가게(카페)와 이어지고,
 // 배송 상자 캐릭터가 길 위를 오간다. 색은 우리 가게에만 쓰고 다른 가게·길·캐릭터는 무채색이다.
@@ -12,6 +13,69 @@ const ORIGIN_Y = -92
 // 무채색 (다른 가게·길·캐릭터)
 const MUTED_ROOF = '#C9CED9'
 const MUTED_LINE = '#AEB4C2'
+
+const SUPPLIER_POSITIONS = [
+  { i: 12, j: 1, w: 4, d: 3, h: 1.2 },
+  { i: 1, j: 3, w: 4, d: 3, h: 1.2 },
+  { i: 2, j: 12, w: 3, d: 4, h: 1.4 },
+  { i: 14, j: 9.5, w: 3, d: 3, h: 1.6 },
+  { i: 6, j: 16, w: 4, d: 2, h: 1 },
+]
+const KNOWN_POSITIONS: Record<string, number> = {
+  'food-b': 0,
+  'food-c': 1,
+  'dairy-a': 2,
+  'bean-d': 3,
+  'pack-e': 4,
+}
+
+function buildSupplierPositions() {
+  const positions = new Map<string, (typeof SUPPLIER_POSITIONS)[number]>()
+  const occupied = [...SUPPLIER_POSITIONS, { i: 8, j: 8, w: 3, d: 3, h: 2.2 }]
+  for (const supplier of SUPPLIERS) {
+    const index = KNOWN_POSITIONS[supplier.id]
+    if (index !== undefined)
+      positions.set(supplier.id, SUPPLIER_POSITIONS[index])
+  }
+  for (const supplier of [...SUPPLIERS].sort((a, b) =>
+    a.id.localeCompare(b.id),
+  )) {
+    if (positions.has(supplier.id)) continue
+    const candidates: typeof SUPPLIER_POSITIONS = []
+    for (let radius = 1; candidates.length < 8; radius++) {
+      for (let x = -radius; x <= radius; x++) {
+        for (let y = -radius; y <= radius; y++) {
+          if (Math.max(Math.abs(x), Math.abs(y)) !== radius) continue
+          const candidate = {
+            i: 8 + x * 4.5,
+            j: 8 + y * 4.5,
+            w: 3,
+            d: 3,
+            h: 1.2,
+          }
+          if (
+            occupied.every(
+              (p) =>
+                candidate.i + candidate.w + 1 <= p.i ||
+                p.i + p.w + 1 <= candidate.i ||
+                candidate.j + candidate.d + 1 <= p.j ||
+                p.j + p.d + 1 <= candidate.j,
+            )
+          )
+            candidates.push(candidate)
+        }
+      }
+    }
+    const hash = Array.from(supplier.id).reduce(
+      (value, char) => (Math.imul(value, 31) + char.charCodeAt(0)) >>> 0,
+      0,
+    )
+    const position = candidates[hash % Math.min(8, candidates.length)]
+    positions.set(supplier.id, position)
+    occupied.push(position)
+  }
+  return positions
+}
 
 function iso(i: number, j: number, z = 0): [number, number] {
   return [ORIGIN_X + (i - j) * S * 0.866, ORIGIN_Y + (i + j) * S * 0.5 - z * S]
@@ -264,7 +328,10 @@ function RouteBot({
 }) {
   const [sx, sy] = iso(...route.d[0])
   return (
-    <g transform={reduceMotion ? `translate(${sx} ${sy - 10})` : undefined}>
+    <g
+      pointerEvents="none"
+      transform={reduceMotion ? `translate(${sx} ${sy - 10})` : undefined}
+    >
       <g transform={reduceMotion ? undefined : 'translate(0 -10)'}>
         {!reduceMotion && (
           <animateMotion
@@ -329,6 +396,8 @@ type SceneProps = {
   selected?: boolean
   onStoreClick?: () => void
   storeRef?: Ref<SVGGElement>
+  onSupplierClick?: (id: string) => void
+  onPanStart?: () => void
 }
 
 export function Scene({
@@ -336,20 +405,132 @@ export function Scene({
   selected = false,
   onStoreClick,
   storeRef,
+  onSupplierClick,
+  onPanStart,
 }: SceneProps) {
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [dragging, setDragging] = useState(false)
+  const drag = useRef<{
+    x: number
+    y: number
+    panX: number
+    panY: number
+    moved: boolean
+  } | null>(null)
+  const suppressClick = useRef(false)
+  const positions = useMemo(buildSupplierPositions, [])
   const reduceMotion =
     typeof window !== 'undefined' &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches
   const [gx, gy] = iso(9.5, 9.5)
+  function supplierBuilding(index: number) {
+    const supplier = SUPPLIERS[index]
+    if (!supplier) return null
+    const position = positions.get(supplier.id)!
+    return (
+      <g
+        key={supplier.id}
+        className={interactive ? 'supplier-building' : undefined}
+        role={interactive ? 'button' : undefined}
+        tabIndex={interactive ? 0 : undefined}
+        aria-label={
+          interactive
+            ? `${supplier.name.replace('(가상) ', '')} 거래처 열기`
+            : undefined
+        }
+        onClick={interactive ? () => onSupplierClick?.(supplier.id) : undefined}
+        onKeyDown={
+          interactive
+            ? (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  onSupplierClick?.(supplier.id)
+                }
+              }
+            : undefined
+        }
+      >
+        <Block {...position} roof={MUTED_ROOF} panels />
+      </g>
+    )
+  }
 
   return (
     <svg
-      className="scene"
-      viewBox={interactive ? '100 -170 1400 800' : '0 0 1600 900'}
+      className={`scene${interactive ? ' scene-draggable' : ''}${dragging ? ' is-dragging' : ''}`}
+      viewBox={
+        interactive ? `${100 + pan.x} ${-170 + pan.y} 1400 800` : '0 0 1600 900'
+      }
       preserveAspectRatio="xMidYMid slice"
       aria-hidden={interactive ? undefined : true}
       role={interactive ? 'group' : undefined}
       aria-label={interactive ? '우리 가게와 거래처 지도' : undefined}
+      onPointerDown={
+        interactive
+          ? (event) => {
+              if (event.button !== 0) return
+              suppressClick.current = false
+              drag.current = {
+                x: event.clientX,
+                y: event.clientY,
+                panX: pan.x,
+                panY: pan.y,
+                moved: false,
+              }
+            }
+          : undefined
+      }
+      onPointerMove={
+        interactive
+          ? (event) => {
+              const active = drag.current
+              if (!active) return
+              const dx = event.clientX - active.x
+              const dy = event.clientY - active.y
+              if (!active.moved && Math.hypot(dx, dy) < 5) return
+              if (!active.moved) {
+                active.moved = true
+                suppressClick.current = true
+                event.currentTarget.setPointerCapture(event.pointerId)
+                setDragging(true)
+                onPanStart?.()
+              }
+              const rect = event.currentTarget.getBoundingClientRect()
+              const scale = Math.max(rect.width / 1400, rect.height / 800)
+              setPan({
+                x: active.panX - dx / scale,
+                y: active.panY - dy / scale,
+              })
+            }
+          : undefined
+      }
+      onPointerUp={
+        interactive
+          ? () => {
+              drag.current = null
+              setDragging(false)
+            }
+          : undefined
+      }
+      onPointerCancel={
+        interactive
+          ? () => {
+              drag.current = null
+              setDragging(false)
+            }
+          : undefined
+      }
+      onClickCapture={
+        interactive
+          ? (event) => {
+              if (suppressClick.current) {
+                event.preventDefault()
+                event.stopPropagation()
+                suppressClick.current = false
+              }
+            }
+          : undefined
+      }
     >
       <defs>
         <radialGradient id="cafe-glow">
@@ -411,14 +592,16 @@ export function Scene({
       ))}
 
       {/* 다른 가게(공급처) — 무채색, 뒤쪽부터 그린다 */}
-      <Block i={12} j={1} w={4} d={3} h={1.2} roof={MUTED_ROOF} panels />
-      <Block i={1} j={3} w={4} d={3} h={1.2} roof={MUTED_ROOF} panels />
+      {supplierBuilding(0)}
+      {supplierBuilding(1)}
       <Crates i={16.5} j={5} />
+      {supplierBuilding(2)}
 
-      {/* 가게 뒤쪽 경로의 캐릭터는 가게보다 먼저 그린다. */}
-      {ROUTES.slice(0, 3).map((route, n) => (
+      {/* 위쪽 건물 앞, 우리 가게 뒤의 경로 */}
+      {ROUTES.slice(0, 2).map((route, n) => (
         <RouteBot key={n} route={route} reduceMotion={reduceMotion} />
       ))}
+      <RouteBot route={ROUTES[2]} reduceMotion={reduceMotion} />
 
       {/* 우리 가게 */}
       <g
@@ -444,16 +627,51 @@ export function Scene({
         <StorePin pulse={interactive && !selected && !reduceMotion} />
       </g>
 
-      <Block i={14} j={9.5} w={3} d={3} h={1.6} roof={MUTED_ROOF} panels />
-      <Block i={2} j={12} w={3} d={4} h={1.4} roof={MUTED_ROOF} panels />
-      <Crates i={3} j={8} />
-      <Block i={6} j={16} w={4} d={2} h={1} roof={MUTED_ROOF} panels />
-      <Crates i={12.5} j={14} />
-
-      {/* 길 위를 오가는 배송 상자 캐릭터 */}
+      {/* 우리 가게 앞, 아래쪽 건물 뒤의 경로 */}
       {ROUTES.slice(3).map((route, n) => (
         <RouteBot key={n} route={route} reduceMotion={reduceMotion} />
       ))}
+
+      {supplierBuilding(3)}
+      <Crates i={3} j={8} />
+      {supplierBuilding(4)}
+      <Crates i={12.5} j={14} />
+      {SUPPLIERS.slice(5).map((_, index) => supplierBuilding(index + 5))}
+
+      {SUPPLIERS.map((supplier) => {
+        const { i, j, w, d, h } = positions.get(supplier.id)!
+        const [x, y] = iso(i + w / 2, j + d / 2, h)
+        const name = supplier.name.replace('(가상) ', '')
+        const width = name.length * 15 + 28
+        return (
+          <g
+            key={supplier.id}
+            transform={`translate(${x} ${y - 22})`}
+            pointerEvents="none"
+            aria-hidden="true"
+          >
+            <rect
+              x={-width / 2}
+              y={-16}
+              width={width}
+              height={32}
+              rx={16}
+              fill="white"
+              stroke="#d7dce6"
+            />
+            <text
+              textAnchor="middle"
+              dominantBaseline="central"
+              fontSize="14"
+              fontWeight="700"
+              fill="#414858"
+            >
+              {name}
+            </text>
+          </g>
+        )
+      })}
+
       {!reduceMotion &&
         ROUTES.map((route, n) => {
           const [x, y] = iso(...route.d[route.d.length - 1])

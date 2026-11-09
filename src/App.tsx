@@ -14,19 +14,18 @@ import StartScreen from './pages/StartScreen.tsx'
 import SupplierList from './pages/SupplierList.tsx'
 import SupplierPage from './pages/SupplierPage.tsx'
 import MyPage from './pages/MyPage.tsx'
+import type { InspectionPhoto } from './components/InspectionPhotos.ts'
 import { loadProfile, type Profile } from './profile.ts'
 
 // 시작 화면(우리 가게 지도) → '우리 매장으로 가기' 또는 거래처 이름 → 매장 화면.
 // 시작 화면에서 들어갈 때만 매장 화면이 오른쪽에서 밀려 들어온다 (앱 안 탭 이동은 바로 바뀜).
 // 그동안 배달 트럭이 매장 화면 앞(왼쪽 가장자리)에서 같은 속도로 달리며 화면을 끌고 온다
 // 라우터 없이 위쪽 탭으로 화면을 바꾼다. 상품 화면(US-08)만 API와 이어져 있고 나머지는 디자인 시안이다.
-const PAGES: Record<ScreenKey, () => JSX.Element> = {
+const PAGES: Partial<Record<ScreenKey, () => JSX.Element>> = {
   products: ProductList,
   orders: OrderList,
   upload: ReceiptUpload,
   suppliers: SupplierList,
-  inspection: InspectionReview,
-  approval: ExceptionApproval,
   calendar: DeliveryCalendar,
   history: ChangeHistory,
 }
@@ -47,6 +46,9 @@ function App() {
   const [supplierId, setSupplierId] = useState<string | null>(null)
   const [myPage, setMyPage] = useState(false)
   const [profile, setProfile] = useState<Profile>(loadProfile)
+  const [inspectionPhotos, setInspectionPhotos] = useState<InspectionPhoto[]>(
+    [],
+  )
   const [transition, setTransition] = useState<Transition>(null)
   const slideTimer = useRef<number | undefined>(undefined)
   // 빠져나갈 때 매장 화면을 고정 상자로 옮기므로, 보던 스크롤 위치를 그대로 이어 간다
@@ -157,9 +159,16 @@ function App() {
               <MyPage profile={profile} onSave={setProfile} />
             ) : supplierId ? (
               <SupplierPage supplierId={supplierId} />
-            ) : (
+            ) : screen === 'inspection' ? (
+              <InspectionReview
+                photos={inspectionPhotos}
+                onPhotosChange={setInspectionPhotos}
+              />
+            ) : screen === 'approval' ? (
+              <ExceptionApproval photos={inspectionPhotos} />
+            ) : Page ? (
               <Page />
-            )}
+            ) : null}
           </AppShell>
         </div>
       )}

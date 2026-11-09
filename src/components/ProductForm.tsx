@@ -2,12 +2,12 @@ import { useState, type FormEvent } from 'react'
 import {
   ApiError,
   createProduct,
+  updateProduct,
   type Product,
   type ProductInput,
 } from '../api/products.ts'
 
-// 상품 등록 폼 (US-08 / F-01)
-// 수정은 first-feature.md 2절 #2가 '오늘 만들지 않음'이고 API.md에도 항목이 없어 만들지 않는다.
+// 상품 등록·수정 폼 (US-08 / F-01)
 
 type FieldName = keyof ProductInput
 
@@ -66,6 +66,10 @@ function validate(values: FormValues): FieldErrors {
   if (values.conversion_qty !== '' && Number(values.conversion_qty) <= 0) {
     errors.conversion_qty = '환산값은 0보다 커야 합니다'
   }
+  for (const field of ['conversion_qty', 'base_unit_price'] as const) {
+    if (values[field] !== '' && !Number.isSafeInteger(Number(values[field])))
+      errors[field] = '정수를 입력해 주세요'
+  }
   return errors
 }
 
@@ -92,11 +96,30 @@ function toInput(values: FormValues): ProductInput {
 
 type ProductFormProps = {
   onSubmitStart: () => void
-  onCreated: (product: Product) => void
+  onSaved: (product: Product) => void
+  product?: Product
+  onCancelEdit: () => void
 }
 
-function ProductForm({ onSubmitStart, onCreated }: ProductFormProps) {
-  const [values, setValues] = useState<FormValues>(EMPTY_VALUES)
+function ProductForm({
+  onSubmitStart,
+  onSaved,
+  product,
+  onCancelEdit,
+}: ProductFormProps) {
+  const [values, setValues] = useState<FormValues>(() =>
+    product
+      ? {
+          product_code: product.product_code,
+          name: product.name ?? '',
+          spec: product.spec ?? '',
+          base_unit: product.base_unit ?? '',
+          pack_unit: product.pack_unit ?? '',
+          conversion_qty: product.conversion_qty?.toString() ?? '',
+          base_unit_price: product.base_unit_price?.toString() ?? '',
+        }
+      : EMPTY_VALUES,
+  )
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [formError, setFormError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -117,14 +140,25 @@ function ProductForm({ onSubmitStart, onCreated }: ProductFormProps) {
 
     setSubmitting(true)
     try {
-      const product = await createProduct(toInput(values))
+      const input = toInput(values)
+      const changes: Partial<ProductInput> = {}
+      if (product) {
+        for (const key of Object.keys(input) as FieldName[]) {
+          if (input[key] !== product[key])
+            Object.assign(changes, { [key]: input[key] })
+        }
+      }
+      const saved = product
+        ? await updateProduct(product.id, changes)
+        : await createProduct(input)
       setValues(EMPTY_VALUES)
-      onCreated(product)
+      onSaved(saved)
     } catch (error) {
       // 저장되지 않았을 때는 입력값을 그대로 두고 원인을 칸 아래나 폼 위에 보여 준다
       if (
         error instanceof ApiError &&
-        error.code === 'DUPLICATE_PRODUCT_CODE'
+        (error.code === 'DUPLICATE_PRODUCT_CODE' ||
+          error.code === 'REQUIRED_FIELD_MISSING')
       ) {
         setFieldErrors({ product_code: error.message })
       } else if (
@@ -188,6 +222,16 @@ function ProductForm({ onSubmitStart, onCreated }: ProductFormProps) {
       <button type="submit" className="button-primary" disabled={submitting}>
         {submitting ? '저장하는 중…' : '저장'}
       </button>
+      {product && (
+        <button
+          type="button"
+          className="button-secondary"
+          disabled={submitting}
+          onClick={onCancelEdit}
+        >
+          수정 취소
+        </button>
+      )}
     </form>
   )
 }

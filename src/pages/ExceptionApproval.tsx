@@ -1,32 +1,78 @@
+import { useEffect, useRef, useState } from 'react'
 import {
   CardHead,
   Pill,
-  StatusSummary,
   Icon,
   PageHeader,
   StatusPill,
 } from '../components/ui.tsx'
 import { EXCEPTIONS } from '../mocks/sample.ts'
+import type { InspectionPhoto } from '../components/InspectionPhotos.ts'
 
 // 예외 건 승인 (사장님) 화면 — 디자인 시안 (PRD 5절 / US-06 / F-06)
 // 사장 승인 대기 → 승인 → 재고 반영 완료 / 사장 승인 대기 → 반려(사유 필수) → 직원 재검수 또는 검수 종료
 
-function ExceptionApproval() {
-  const selected = EXCEPTIONS[0]
+function AttachedPhotos({ photos }: { photos: InspectionPhoto[] }) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [edges, setEdges] = useState({ left: false, right: false })
+  useEffect(() => {
+    const element = scrollRef.current
+    if (!element) return
+    const update = () =>
+      setEdges({
+        left: element.scrollLeft > 1,
+        right:
+          element.scrollLeft + element.clientWidth < element.scrollWidth - 1,
+      })
+    update()
+    element.addEventListener('scroll', update, { passive: true })
+    const observer = new ResizeObserver(update)
+    observer.observe(element)
+    if (element.firstElementChild) observer.observe(element.firstElementChild)
+    return () => {
+      element.removeEventListener('scroll', update)
+      observer.disconnect()
+    }
+  }, [])
+  return (
+    <section
+      className="card approval-attachments"
+      aria-labelledby="attachments-title"
+    >
+      <CardHead
+        id="attachments-title"
+        icon={<Icon name="photo" />}
+        title="입고 확인 첨부 사진"
+        note="IN-1049 · 임시 보관 중"
+      />
+      <div
+        className={`review-scroll-wrap${edges.left ? ' fade-left' : ''}${edges.right ? ' fade-right' : ''}`}
+      >
+        <div className="table-scroll approval-photo-scroll" ref={scrollRef}>
+          <div className="approval-photo-list">
+            {photos.map((photo) => (
+              <figure key={photo.id}>
+                <img src={photo.src} alt={`첨부 사진: ${photo.name}`} />
+                <figcaption title={photo.name}>{photo.name}</figcaption>
+              </figure>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function ExceptionApproval({ photos }: { photos: InspectionPhoto[] }) {
+  const [selectedId, setSelectedId] = useState(EXCEPTIONS[0].id)
+  const selected =
+    EXCEPTIONS.find((item) => item.id === selectedId) ?? EXCEPTIONS[0]
 
   return (
     <>
       <PageHeader title="예외 승인" screen="approval" />
 
-      <StatusSummary
-        items={[
-          {
-            label: '사장 승인 대기',
-            value: EXCEPTIONS.length,
-            status: '사장 승인 대기',
-          },
-        ]}
-      />
+      {photos.length > 0 && <AttachedPhotos photos={photos} />}
       <div className="layout-split">
         <section className="card" aria-labelledby="exception-list-title">
           <CardHead
@@ -42,6 +88,7 @@ function ExceptionApproval() {
                   type="button"
                   className={`pick-item${item.id === selected.id ? ' is-selected' : ''}`}
                   aria-pressed={item.id === selected.id}
+                  onClick={() => setSelectedId(item.id)}
                 >
                   <span>
                     <strong>{item.supplier}</strong>
@@ -84,15 +131,6 @@ function ExceptionApproval() {
             <blockquote>{selected.staffReason}</blockquote>
           </figure>
 
-          <div className="photo-row">
-            <span className="photo-thumb" aria-label="직원이 붙인 사진 1">
-              <Icon name="photo" size={28} />
-            </span>
-            <span className="photo-thumb" aria-label="직원이 붙인 사진 2">
-              <Icon name="photo" size={28} />
-            </span>
-          </div>
-
           <div className="table-scroll">
             <table className="data-table">
               <thead>
@@ -131,6 +169,7 @@ function ExceptionApproval() {
               반려 사유 <span className="muted">(반려할 때 필수)</span>
             </label>
             <textarea
+              key={selected.id}
               id="reject-reason"
               rows={2}
               placeholder="예: 단가 변경을 공급처에 먼저 확인할게요"

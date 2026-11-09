@@ -120,6 +120,7 @@ function StartScreen({
   leaving = false,
   returning = false,
 }: StartScreenProps) {
+  const nav = useNav()
   const [open, setOpen] = useState(false)
   // 닫히는 중: 나타날 때와 반대로 흐려지며 왼쪽으로 밀린 뒤 사라진다
   const [closing, setClosing] = useState(false)
@@ -213,6 +214,10 @@ function StartScreen({
           selected={open}
           onStoreClick={openPopover}
           storeRef={storeRef}
+          onSupplierClick={nav.openSupplier}
+          onPanStart={() => {
+            if (open) closePopover()
+          }}
         />
       </div>
 
@@ -239,7 +244,8 @@ function StartScreen({
         <p className="start-hint">
           <span className="start-hint-dot" aria-hidden="true" />
           <span>
-            주황색 <strong>우리 가게</strong>를 눌러 매장으로 들어가세요
+            지도를 드래그해 둘러보고, <strong>우리 가게</strong>나 거래처를 눌러
+            보세요
           </span>
         </p>
       )}
@@ -270,7 +276,6 @@ function StartScreen({
             </button>
           </div>
           <h2 id="store-popover-title">카페 1호점</h2>
-          <SupplierLink />
           <button
             ref={enterRef}
             type="button"
@@ -279,6 +284,7 @@ function StartScreen({
           >
             우리 매장으로 가기 →
           </button>
+          <SupplierLink />
         </section>
       )}
     </main>

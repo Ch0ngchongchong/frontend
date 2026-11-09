@@ -7,6 +7,7 @@ import {
   StatusPill,
 } from '../components/ui.tsx'
 import { REVIEW_LINES, type ReviewLine } from '../mocks/sample.ts'
+import type { InspectionPhoto } from '../components/InspectionPhotos.ts'
 
 // 입고 확인 (직원) 화면 — 디자인 시안 (PRD 5절 / US-03·US-04·US-05 / F-03·F-04·F-05)
 // 판독 결과와 발주를 줄 단위로 대조한다. AI가 확신하지 못한 값·규칙 검증 실패·후보 없음/2개 이상·환산 불가는
@@ -24,10 +25,15 @@ function checksOf(line: ReviewLine) {
   return n
 }
 
-function InspectionReview() {
+function InspectionReview({
+  photos,
+  onPhotosChange,
+}: {
+  photos: InspectionPhoto[]
+  onPhotosChange: React.Dispatch<React.SetStateAction<InspectionPhoto[]>>
+}) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const photoInputRef = useRef<HTMLInputElement>(null)
-  const [photo, setPhoto] = useState<{ name: string; src: string } | null>(null)
   const [photoError, setPhotoError] = useState('')
   async function attachPhoto(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
@@ -65,7 +71,12 @@ function InspectionReview() {
       }
       context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
       bitmap.close()
-      setPhoto({ name: file.name, src: canvas.toDataURL('image/png') })
+      const photo = {
+        id: crypto.randomUUID(),
+        name: file.name,
+        src: canvas.toDataURL('image/png'),
+      }
+      onPhotosChange((previous) => [...previous, photo])
       setPhotoError('')
     } catch {
       setPhotoError(
@@ -96,6 +107,29 @@ function InspectionReview() {
   const remaining = REVIEW_LINES.reduce((sum, line) => sum + checksOf(line), 0)
   const differs = REVIEW_LINES.filter((line) => line.differs).length
 
+  function highlight(kind: 'checks' | 'differs') {
+    const selector =
+      kind === 'checks' ? '.cell-check, .cell-fail' : '.row-differs td'
+    const targets = scrollRef.current?.querySelectorAll<HTMLElement>(selector)
+    const reduceMotion = window.matchMedia(
+      '(prefers-reduced-motion: reduce)',
+    ).matches
+    targets?.forEach((target) => {
+      target.getAnimations().forEach((animation) => animation.cancel())
+      target.animate(
+        [
+          { boxShadow: 'inset 0 0 0 999px rgba(242, 106, 33, 0)' },
+          { boxShadow: 'inset 0 0 0 999px rgba(242, 106, 33, 0.24)' },
+          { boxShadow: 'inset 0 0 0 999px rgba(242, 106, 33, 0)' },
+        ],
+        {
+          duration: reduceMotion ? 600 : 700,
+          iterations: reduceMotion ? 1 : 3,
+        },
+      )
+    })
+  }
+
   return (
     <>
       <PageHeader title="입고 확인" screen="inspection" />
@@ -107,12 +141,14 @@ function InspectionReview() {
             value: remaining,
             tone: 'accent',
             icon: 'review',
+            onClick: () => highlight('checks'),
           },
           {
             label: '발주와 다른 줄',
             value: differs,
             tone: 'danger',
             icon: 'alert',
+            onClick: () => highlight('differs'),
           },
         ]}
       />
@@ -269,30 +305,36 @@ function InspectionReview() {
             onClick={() => photoInputRef.current?.click()}
           >
             <Icon name="photo" size={18} />
-            {photo ? '사진 변경' : '사진 붙이기'}
+            사진 붙이기
           </button>
           {photoError && (
             <p className="field-error" role="alert">
               {photoError}
             </p>
           )}
-          {photo && (
-            <div className="inspection-photo">
+          {photos.map((photo) => (
+            <div className="inspection-photo" key={photo.id}>
               <img src={photo.src} alt="첨부한 사진 미리보기" />
               <div>
                 <span>{photo.name}</span>
                 <button
                   type="button"
                   onClick={() => {
-                    setPhoto(null)
+                    onPhotosChange((previous) =>
+                      previous.filter((item) => item.id !== photo.id),
+                    )
                     setPhotoError('')
                   }}
                 >
                   사진 삭제
                 </button>
               </div>
-              <small>사진은 이 화면에서만 유지돼요.</small>
             </div>
+          ))}
+          {photos.length > 0 && (
+            <small className="inspection-photo-note">
+              사진은 새로고침 전까지 임시로 유지돼요.
+            </small>
           )}
           <button type="button" className="button-primary" disabled>
             확인할 칸 {remaining}개 남음
