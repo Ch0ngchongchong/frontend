@@ -418,7 +418,7 @@ export function Scene({
     moved: boolean
   } | null>(null)
   const suppressClick = useRef(false)
-  const positions = useMemo(buildSupplierPositions, [])
+  const positions = useMemo(() => buildSupplierPositions(), [])
   const reduceMotion =
     typeof window !== 'undefined' &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches

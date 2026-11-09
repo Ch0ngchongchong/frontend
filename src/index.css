@@ -2341,27 +2341,115 @@ input {
 /* 변경 이력 */
 .filter-row {
   display: flex;
-  flex-wrap: wrap;
+  width: max-content;
   gap: var(--space);
+  padding-inline: max(0px, calc((100vw - 140px) / 2));
+}
+
+.history-filter-wrap {
+  position: relative;
+  min-width: 0;
+  padding: 16px 0;
+}
+.history-filter-scroll {
+  overflow-x: auto;
+  padding: 3px 0;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.history-filter-scroll::-webkit-scrollbar {
+  display: none;
+}
+.history-wheel-marker {
+  position: absolute;
+  left: 50%;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+}
+.history-wheel-marker.marker-top {
+  top: 2px;
+  border-top: 7px solid var(--accent);
+}
+.history-wheel-marker.marker-bottom {
+  bottom: 2px;
+  border-bottom: 7px solid var(--accent);
+}
+.history-filter-wrap::before,
+.history-filter-wrap::after {
+  content: '';
+  position: absolute;
+  top: 16px;
+  bottom: 16px;
+  width: 36px;
+  z-index: 1;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+.history-filter-wrap::before {
+  left: 0;
+  background: linear-gradient(to right, rgba(255, 255, 255, 0.95), transparent);
+}
+.history-filter-wrap::after {
+  right: 0;
+  background: linear-gradient(to left, rgba(255, 255, 255, 0.95), transparent);
+}
+.history-filter-wrap.fade-left::before,
+.history-filter-wrap.fade-right::after {
+  opacity: 1;
 }
 
 .filter-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 140px;
+  width: 140px;
+  gap: 8px;
   min-height: 48px;
-  padding: 0 calc(var(--space) * 2.5);
+  padding: 0 16px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 12px;
   color: var(--text-muted);
   background: var(--surface-strong);
   font: inherit;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
+  white-space: nowrap;
   cursor: pointer;
+  scroll-snap-align: center;
+  transition:
+    opacity 0.2s,
+    transform 0.2s,
+    background 0.2s;
+}
+
+.history-filter-wrap {
+  container-type: inline-size;
+}
+.history-filter-wrap .filter-row {
+  padding-inline: max(0px, calc((100cqw - 140px) / 2));
+}
+.filter-chip.wheel-distance-1 {
+  opacity: 0.55;
+  transform: scale(0.9);
+}
+.filter-chip.wheel-distance-2 {
+  opacity: 0.28;
+  transform: scale(0.8);
+}
+.filter-chip.wheel-distance-3 {
+  opacity: 0.12;
+  transform: scale(0.72);
 }
 
 .filter-chip.is-selected {
-  border-color: var(--primary);
-  color: #ffffff;
-  background: var(--primary);
+  border-color: var(--accent);
+  color: var(--warning-text);
+  background: var(--accent-soft);
 }
 
 .filter-chip:focus-visible {
@@ -2644,6 +2732,63 @@ input {
 }
 
 /* 고른 날의 입고 목록 */
+.day-scroll-wrap {
+  position: relative;
+  min-width: 0;
+}
+.day-scroll {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #bbc0cb #f2f3f6;
+}
+.day-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.day-scroll::-webkit-scrollbar-track {
+  background: #f2f3f6;
+  border-radius: 999px;
+}
+.day-scroll::-webkit-scrollbar-thumb {
+  background: #bbc0cb;
+  border: 2px solid #f2f3f6;
+  border-radius: 999px;
+}
+.day-scroll::-webkit-scrollbar-thumb:hover {
+  background: #9299a8;
+}
+.day-scroll:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.day-scroll-wrap::before,
+.day-scroll-wrap::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  left: 0;
+  right: 8px;
+  height: 36px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.day-scroll-wrap::before {
+  top: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.95),
+    transparent
+  );
+}
+.day-scroll-wrap::after {
+  bottom: 0;
+  background: linear-gradient(to top, rgba(255, 255, 255, 0.95), transparent);
+}
+.day-scroll-wrap.fade-top::before,
+.day-scroll-wrap.fade-bottom::after {
+  opacity: 1;
+}
 .day-list,
 .day-items {
   margin: 0;
@@ -2657,86 +2802,74 @@ input {
   gap: calc(var(--space) * 1.5);
 }
 
-/* 고른 날의 입고 건: 폴더처럼 두 장 겹친 카드.
-   뒷장 = 상태 색 종이(위쪽 탭에 흰 제목), 앞장 = 흰 종이(세부 사항) */
-.folder-done {
-  --folder: var(--done);
-}
-
-/* 흰 글자가 잘 읽히도록 주황은 한 단계 진하게 */
-.folder-progress {
-  --folder: #c2410c;
-}
-
-.folder-planned {
-  --folder: var(--text-muted);
-}
-
-.day-list > li {
-  position: relative;
-}
-
-/* 뒷장: 상태 색 직사각형. 오른쪽으로 비켜 있고 위쪽에 흰 제목(가운데) */
-.folder-back {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 24px;
-  left: 10px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 10px 16px 0;
-  border-radius: 12px;
-  color: #ffffff;
-  text-align: center;
-  background: var(--folder);
-}
-
-.folder-back strong {
-  max-width: 100%;
-  overflow: hidden;
-  font-size: 16px;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.folder-back small {
-  font-size: 13px;
-  opacity: 0.85;
-}
-
-/* 앞장: 흰 직사각형. 제목 아래부터 뒷장을 덮고 왼쪽·아래로 비어져 나온다 */
-.folder-front {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space);
-  margin: 60px 10px 0 0;
-  padding: 20px calc(var(--space) * 2);
+.day-entry {
+  padding: 16px;
   border: 1px solid var(--line);
-  border-radius: 12px;
-  background: #ffffff;
-  box-shadow: 0 6px 18px rgba(20, 22, 31, 0.1);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 5px 18px rgba(20, 22, 31, 0.04);
 }
-
-.folder-front .pill {
-  align-self: flex-start;
-  margin-bottom: 12px;
+.day-entry-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.day-entry-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  color: var(--text-muted);
+  background: var(--track);
+}
+.day-entry-done .day-entry-icon {
+  color: var(--done);
+  background: var(--done-soft);
+}
+.day-entry-progress .day-entry-icon {
+  color: var(--warning-text);
+  background: var(--accent-soft);
+}
+.day-entry-title {
+  min-width: 0;
+}
+.day-entry-title strong {
+  display: block;
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+.day-entry-title small {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.day-entry-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 16px 0 12px;
+  color: var(--text-muted);
+  font-size: 13px;
 }
 
 .day-items {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
   color: var(--text);
-  font-size: 16px;
+  font-size: 14px;
 }
 
 .day-items li::before {
-  content: '·';
-  margin-right: 6px;
-  color: var(--text-muted);
+  content: '•';
+  margin-right: 8px;
+  color: #aab0bd;
 }
 
 /* 거래처 페이지 (디자인 시안) */

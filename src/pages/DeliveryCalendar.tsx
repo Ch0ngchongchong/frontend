@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   CardHead,
   StatusSummary,
@@ -132,6 +132,78 @@ function toneOf(entry: CalendarEntry) {
   if (entry.status === '재고 반영 완료') return 'done'
   if (entry.status === '입고 대기') return 'planned'
   return 'progress'
+}
+
+function DayEntries({ entries }: { entries: CalendarEntry[] }) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [edges, setEdges] = useState({ top: false, bottom: false })
+  useLayoutEffect(() => {
+    const scroller = scrollRef.current
+    if (!scroller) return
+    const cards = scroller.querySelectorAll<HTMLElement>('.day-entry')
+    const update = () => {
+      if (cards.length > 3) {
+        const first = cards[0].getBoundingClientRect()
+        const third = cards[2].getBoundingClientRect()
+        scroller.style.maxHeight = `${third.bottom - first.top}px`
+      } else scroller.style.maxHeight = ''
+      setEdges({
+        top: scroller.scrollTop > 1,
+        bottom:
+          scroller.scrollTop + scroller.clientHeight <
+          scroller.scrollHeight - 1,
+      })
+    }
+    update()
+    scroller.addEventListener('scroll', update, { passive: true })
+    const observer = new ResizeObserver(update)
+    observer.observe(scroller)
+    cards.forEach((card) => observer.observe(card))
+    return () => {
+      scroller.removeEventListener('scroll', update)
+      observer.disconnect()
+    }
+  }, [entries])
+  return (
+    <div
+      className={`day-scroll-wrap${edges.top ? ' fade-top' : ''}${edges.bottom ? ' fade-bottom' : ''}`}
+    >
+      <div
+        className="day-scroll"
+        ref={scrollRef}
+        tabIndex={entries.length > 3 ? 0 : undefined}
+        aria-label={entries.length > 3 ? '입고 내역 스크롤' : undefined}
+      >
+        <ul className="day-list">
+          {entries.map((entry) => (
+            <li
+              key={entry.id}
+              className={`day-entry day-entry-${toneOf(entry)}`}
+            >
+              <div className="day-entry-header">
+                <span className="day-entry-icon" aria-hidden="true">
+                  <Icon name="box" size={19} />
+                </span>
+                <div className="day-entry-title">
+                  <strong>{entry.supplier.replace('(가상) ', '')}</strong>
+                  <small>{entry.id}</small>
+                </div>
+              </div>
+              <div className="day-entry-status">
+                <StatusPill status={entry.status} />
+                <span>{entry.items.length}개 품목</span>
+              </div>
+              <ul className="day-items">
+                {entry.items.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  )
 }
 
 function DeliveryCalendar() {
@@ -364,24 +436,7 @@ function DeliveryCalendar() {
               <p>들어온 것도, 들어올 것도 없어요</p>
             </div>
           ) : (
-            <ul className="day-list">
-              {selectedEntries.map((entry) => (
-                <li key={entry.id} className={`folder-${toneOf(entry)}`}>
-                  <div className="folder-back">
-                    <strong>{entry.supplier}</strong>
-                    <small>{entry.id}</small>
-                  </div>
-                  <div className="folder-front">
-                    <StatusPill status={entry.status} />
-                    <ul className="day-items">
-                      {entry.items.map((item) => (
-                        <li key={item}>{item}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <DayEntries key={selected} entries={selectedEntries} />
           )}
         </aside>
       </div>
