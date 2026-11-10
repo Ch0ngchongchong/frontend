@@ -1,5 +1,6 @@
 import useSWR from 'swr'
 import { fetchProducts } from './products'
+import { request } from './client'
 
 export type PurchaseOrder = {
   id: number
@@ -16,17 +17,34 @@ export function useProducts() {
 export function useOrders() {
   return useSWR(
     ['purchase-orders', '1'],
-    async () => {
-      const response = await fetch('/api/purchase-orders', {
-        headers: { 'X-User-Id': '1' },
-        cache: 'no-store',
-      })
-      if (!response.ok)
-        throw new Error(
-          '발주 목록을 불러오지 못했어요 (' + response.status + ')',
-        )
-      return response.json() as Promise<PurchaseOrder[]>
-    },
+    () => request<PurchaseOrder[]>('/purchase-orders'),
     { revalidateOnMount: true },
   )
+}
+
+export function useOrder(id: number | null) {
+  return useSWR(
+    id === null ? null : ['purchase-order', '1', id],
+    () => request<PurchaseOrder>(`/purchase-orders/${id}`),
+    { revalidateOnMount: true },
+  )
+}
+
+export function createOrder(input: {
+  supplier: string | null
+  lines: PurchaseOrder['lines']
+}) {
+  return request<PurchaseOrder>('/purchase-orders', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+export function changeOrderStatus(
+  id: number,
+  action: 'approve' | 'mark-delivered' | 'cancel',
+) {
+  return request<PurchaseOrder>(`/purchase-orders/${id}/${action}`, {
+    method: 'POST',
+  })
 }
