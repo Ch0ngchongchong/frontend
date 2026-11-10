@@ -106,12 +106,23 @@ input {
   left: 0;
   padding: calc(var(--space) * 1.5) calc(var(--space) * 3)
     calc(var(--space) * 1.5) 23px;
+  isolation: isolate;
+  border-radius: 0;
+}
+
+.start-top::before {
+  content: '';
+  position: absolute;
+  inset: 0 -48px 0 0;
+  z-index: -1;
+  pointer-events: none;
   border: 1px solid var(--glass-border);
-  border-radius: 0 999px 999px 0;
   background: var(--surface);
   box-shadow: var(--shadow-card);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
+  mask-image: linear-gradient(to right, #000 calc(100% - 64px), transparent);
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 64px), transparent);
 }
 
 /* 우리 가게: 누를 수 있는 장면 속 버튼 */
