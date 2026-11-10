@@ -1,8 +1,7 @@
 // 상품 API 호출 (API.md 항목 1 `POST /products`, 항목 1-2 `GET /products` / US-08 / F-01)
 // 필드 이름은 DATA-MODEL.md 상품 모델 그대로 쓴다.
 
-// vite.config.js의 프록시가 /api를 백엔드로 넘긴다.
-// 배포용 백엔드 주소 환경변수 이름은 아직 미정이다 (.env.example).
+// 개발은 Vite, Vercel 배포는 vercel.json이 /api를 백엔드로 전달한다.
 const API_BASE_URL = '/api'
 
 // API.md 공통 규칙 [제안]: 로그인 방식이 정해질 때까지 X-User-Id 헤더에 시드 사용자 ID를 넣는다.

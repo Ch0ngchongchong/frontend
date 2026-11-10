@@ -5,11 +5,11 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   plugins: [react()],
   server: {
-    // 화면(5173)에서 /api로 부르면 백엔드(uvicorn 기본 8000)로 넘긴다.
-    // 백엔드에 CORS 설정이 없어도 개발 중에 같은 주소처럼 부를 수 있다.
+    // CORS 사전 요청을 지원하지 않는 백엔드에 같은 출처로 요청한다.
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'https://chongchongchongchong.vercel.app',
+        changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
       },
     },
