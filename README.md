@@ -1,26 +1,31 @@
-# React + Vite
+# 딱 재고 · Next.js
 
 ## 로컬 실행
 
-프런트엔드는 `npm install` 후 `npm run dev`로 실행합니다. 상품 조회·등록·수정 요청은 `/api`를 통해 `https://chongchongchongchong.vercel.app`으로 전달됩니다. 로컬 백엔드를 별도로 실행할 필요가 없습니다.
+`npm install` 후 `npm run dev`로 개발 서버(`http://localhost:3000`)를 실행합니다. 프로덕션은 `npm run build` 후 `npm start`로 실행합니다. Vercel 프로젝트의 프레임워크를 Next.js로 설정하고 기존 Vite의 출력 디렉터리(`dist`) 오버라이드를 해제하세요. 정적 파일만 배포하는 호스팅은 SSR·ISR을 실행할 수 없습니다.
 
-개발 환경에서는 `vite.config.js`의 프록시를 사용합니다. Vercel에 프런트엔드를 배포하면 `vercel.json`의 rewrite가 같은 역할을 하므로 브라우저에서 백엔드를 직접 호출하지 않습니다. 다른 호스팅에서는 `/api/*`를 백엔드의 `/*`로 전달하는 리버스 프록시를 설정해야 합니다. `npm run preview`는 정적 빌드 확인용이며 API 프록시는 제공하지 않습니다.
+브라우저의 `/api/*` 요청은 `next.config.js`의 rewrite로 배포 백엔드에 전달됩니다. 백엔드 주소는 이 파일에서 변경합니다. 로컬 백엔드를 별도로 실행할 필요는 없습니다.
 
-상품 API는 로그인 구현 전까지 임시 헤더 `X-User-Id: 1`을 사용합니다. 백엔드 DB에 해당 사용자가 있어야 합니다. 백엔드 주소 변경 시 `vite.config.js`와 `vercel.json`을 함께 수정하세요. 현재 상품 화면만 실제 API와 연결되어 있으며, 발주·검수·거래처 등 나머지 화면은 기존 디자인 시안입니다.
+상품 API와 발주 목록 조회는 로그인 구현 전까지 임시 헤더 `X-User-Id: 1`을 사용합니다. 백엔드 DB에 해당 사용자가 있어야 합니다. 상품 화면과 발주 목록·상태별 건수는 실제 API와 연결되어 있습니다. 발주 작성·승인·취소와 검수·거래처 등 나머지 기능은 기존 디자인 시안입니다.
+
+## 렌더링 전략
+
+| 경로 | 전략 | 이유 |
+| --- | --- | --- |
+| `/` | SSG + 클라이언트 상호작용 | 빌드 시 홈 HTML 생성, 지도 드래그·팝오버는 hydration 후 동작 |
+| `/suppliers`, `/suppliers/[id]` | SSG + ISR (300초) | 현재 공통 샘플 데이터만 정적 생성하고 요청 시 재생성. 실제 매장별 데이터 연결 시 SSR로 전환 필요 |
+| `/products`, `/orders` | 정적 화면 틀 + CSR·SWR 메모리 캐시 | 화면 이동은 백엔드 응답을 기다리지 않음. 재방문 시 기존 목록을 즉시 표시하고 백그라운드 갱신 |
+| `/upload`, `/inspection`, `/approval`, `/calendar`, `/history`, `/profile` | CSR (공통 프레임은 사전 렌더링) | 사진·브라우저 저장소·입력·스크롤 중심 화면은 클라이언트에서 로드 |
+
+모든 화면은 URL로 직접 접근·새로고침·뒤로가기가 가능합니다. 검수 사진과 프로필은 공통 앱 상태로 유지합니다. 상품 저장 후 목록 갱신 및 발주 한도 편집은 CSR입니다. ISR은 샘플 데이터를 다시 렌더링할 뿐, 아직 없는 거래처 API를 조회하거나 빌드에 고정된 샘플 자체를 변경하지는 않습니다.
+
+상품·발주는 사용자 데이터 없는 HTML을 정적 생성합니다. 데이터는 브라우저 메모리의 사용자 ID별 SWR 캐시에만 보관하고, 재진입·창 포커스 복귀 시 재검증합니다. 상품 저장 성공 응답은 즉시 캐시에 반영합니다. 첫 조회나 전체 새로고침에는 데이터 대기가 필요하지만 재방문에서는 기존 목록을 유지하며 갱신합니다. 백그라운드 조회 실패도 기존 목록을 지우지 않습니다. 현재 사용자 ID는 임시값 `1`이며 실제 로그인 연결 시 캐시 키와 요청 헤더를 함께 변경해야 합니다.
+
+상품 목록은 전체 너비로 표시하며 등록 폼은 기본적으로 숨깁니다. 목록의 `상품 등록` 또는 상품 행의 `수정`을 누르면 목록 아래에 폼이 열리고, 저장·취소·닫기 시 다시 숨겨집니다.
+
+발주 한도는 샘플·로컬 저장 없이 서버를 사용합니다. 프런트엔드에서 사용하는 계약은 `GET/POST /purchase-order-limits`, `PATCH/DELETE /purchase-order-limits/{id}`이며, 항목은 `{ id, product, limit, unit }`, 생성·수정 본문은 `{ product, limit, unit }`입니다. GET은 배열, POST/PATCH는 저장된 항목, DELETE는 204를 반환해야 합니다. `X-User-Id: 1`로 매장을 구분합니다. 현재 배포 백엔드에는 이 API가 없어 조회 실패 시 0개로 표시하며, 저장·삭제 실패는 오류로 알리고 화면 데이터는 변경하지 않습니다. 실제 서버 저장을 사용하려면 백엔드에 이 계약 구현 및 배포가 필요합니다.
+
+발주 작성의 `상품 추가`는 입력 행을 추가하고 `−`는 해당 행을 삭제합니다(최소 1행 유지). 각 행의 상품·수량·단위를 독립적으로 입력하며, 상품 선택 시 등록된 기준 단위를 적용합니다. 작성 폼의 서버 저장은 아직 연결되지 않았습니다.
 
 백엔드의 `/openapi.json`에서 API 명세를 확인할 수 있습니다. 상품 조회가 `500`을 반환하면 백엔드의 Vercel 함수 로그와 DB 연결·환경변수·사용자 데이터를 확인해야 합니다.
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
-
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.

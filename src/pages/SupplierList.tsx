@@ -63,7 +63,6 @@ function SupplierList() {
           icon={<Icon name="store" />}
           title="연결된 거래처"
           note="거래처를 누르면 거래 품목과 주문 일정을 볼 수 있어요"
-          right={<span className="chip">{SUPPLIERS.length}곳</span>}
         />
         <ul className="supplier-rows">
           {rows.map(({ supplier, openCount, latest, next }) => (

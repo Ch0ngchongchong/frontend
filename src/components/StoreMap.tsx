@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type Ref } from 'react'
+import { useEffect, useMemo, useRef, useState, type Ref } from 'react'
 import { SUPPLIERS } from '../mocks/sample.ts'
 
 // 아이소메트릭 장면: 공급처 건물 5곳(식자재 2·유제품·원두·포장재, PRD 1절)이 길로 우리 가게(카페)와 이어지고,
@@ -419,9 +419,14 @@ export function Scene({
   } | null>(null)
   const suppressClick = useRef(false)
   const positions = useMemo(() => buildSupplierPositions(), [])
-  const reduceMotion =
-    typeof window !== 'undefined' &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const [reduceMotion, setReduceMotion] = useState(false)
+  useEffect(() => {
+    const preference = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const update = () => setReduceMotion(preference.matches)
+    update()
+    preference.addEventListener('change', update)
+    return () => preference.removeEventListener('change', update)
+  }, [])
   const [gx, gy] = iso(9.5, 9.5)
   function supplierBuilding(index: number) {
     const supplier = SUPPLIERS[index]

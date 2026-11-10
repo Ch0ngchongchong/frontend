@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { fetchProducts, type Product } from '../api/products.ts'
+import { useEffect, useRef, useState } from 'react'
+import { type Product } from '../api/products.ts'
+import { useProducts } from '../api/workspace'
 import ProductForm from '../components/ProductForm.tsx'
 import { Icon, PageHeader, Pill, StatusSummary } from '../components/ui.tsx'
 
@@ -87,44 +88,49 @@ function CoinIcon() {
 const DOTS = 12
 
 function ProductList() {
-  const [state, setState] = useState<LoadState>({ status: 'loading' })
+  const { data, error, mutate } = useProducts()
+  const state: LoadState = data
+    ? { status: 'ready', products: data }
+    : error
+      ? {
+          status: 'error',
+          message:
+            error instanceof Error
+              ? error.message
+              : '상품 목록을 불러오지 못했어요',
+        }
+      : { status: 'loading' }
   const [notice, setNotice] = useState<string | null>(null)
   const [editing, setEditing] = useState<Product | null>(null)
+  const [formOpen, setFormOpen] = useState(false)
   const formRef = useRef<HTMLElement>(null)
 
-  const load = useCallback(async () => {
-    setState({ status: 'loading' })
-    try {
-      const products = await fetchProducts()
-      setState({ status: 'ready', products })
-    } catch (error) {
-      setState({
-        status: 'error',
-        message:
-          error instanceof Error
-            ? error.message
-            : '상품 목록을 불러오지 못했어요',
-      })
-    }
-  }, [])
-
   useEffect(() => {
-    // 화면을 열 때 서버에서 목록을 한 번 불러온다
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load()
-  }, [load])
+    if (!formOpen) return
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    formRef.current?.querySelector('input')?.focus({ preventScroll: true })
+  }, [formOpen, editing])
 
   function handleSaved(product: Product) {
     setNotice(
       `${product.product_code} 상품을 ${editing ? '수정' : '등록'}했어요`,
     )
     setEditing(null)
-    load()
+    setFormOpen(false)
+    void mutate(
+      (current) => {
+        if (!current) return [product]
+        return current.some((item) => item.id === product.id)
+          ? current.map((item) => (item.id === product.id ? product : item))
+          : [...current, product]
+      },
+      { revalidate: false },
+    )
   }
 
   function goToForm() {
-    formRef.current?.scrollIntoView({ behavior: 'smooth' })
-    formRef.current?.querySelector('input')?.focus()
+    setEditing(null)
+    setFormOpen(true)
   }
 
   const summary = state.status === 'ready' ? summarize(state.products) : null
@@ -136,7 +142,7 @@ function ProductList() {
   const priceRatio = summary ? ratio(summary.withPrice, summary.total) : 0
 
   return (
-    <>
+    <div className="product-page">
       <PageHeader title="상품 목록" screen="products" />
 
       <section className="stats" aria-label="상품 요약">
@@ -230,7 +236,17 @@ function ProductList() {
                 환산값이 없는 상품은 입고 확인 때 수량을 직접 적어야 해요
               </p>
             </div>
-            {summary && <span className="chip">{summary.total}개</span>}
+            <div className="product-list-actions">
+              <button
+                type="button"
+                className="button-secondary"
+                onClick={goToForm}
+                aria-expanded={formOpen}
+                aria-controls="product-editor"
+              >
+                상품 등록
+              </button>
+            </div>
           </div>
 
           {notice && (
@@ -262,7 +278,9 @@ function ProductList() {
               <button
                 type="button"
                 className="product-load-retry"
-                onClick={load}
+                onClick={() => {
+                  void mutate()
+                }}
               >
                 다시 불러오기
               </button>
@@ -339,10 +357,7 @@ function ProductList() {
                           onClick={() => {
                             setNotice(null)
                             setEditing(product)
-                            formRef.current?.scrollIntoView({
-                              behavior: 'smooth',
-                              block: 'start',
-                            })
+                            setFormOpen(true)
                           }}
                           aria-label={`${product.name || product.product_code} 수정`}
                         >
@@ -357,34 +372,50 @@ function ProductList() {
           )}
         </section>
 
-        <section
-          className="card card-form"
-          aria-labelledby="form-title"
-          ref={formRef}
-        >
-          <div className="card-head">
-            <div>
-              <h2 id="form-title" className="card-title">
-                <PlusIcon />
-                {editing ? '상품 수정' : '상품 등록'}
-              </h2>
-              <p className="card-note">
-                {editing
-                  ? `${editing.product_code} 상품의 정보를 수정해 주세요`
-                  : '상품 코드는 꼭 적고, 나머지는 아는 만큼 적어 주세요'}
-              </p>
+        {formOpen && (
+          <section
+            id="product-editor"
+            className="card card-form"
+            aria-labelledby="form-title"
+            ref={formRef}
+          >
+            <div className="card-head">
+              <div>
+                <h2 id="form-title" className="card-title">
+                  <PlusIcon />
+                  {editing ? '상품 수정' : '상품 등록'}
+                </h2>
+                <p className="card-note">
+                  {editing
+                    ? `${editing.product_code} 상품의 정보를 수정해 주세요`
+                    : '상품 코드는 꼭 적고, 나머지는 아는 만큼 적어 주세요'}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="button-small"
+                onClick={() => {
+                  setEditing(null)
+                  setFormOpen(false)
+                }}
+              >
+                닫기
+              </button>
             </div>
-          </div>
-          <ProductForm
-            key={editing?.id ?? 'new'}
-            onSubmitStart={() => setNotice(null)}
-            onSaved={handleSaved}
-            product={editing ?? undefined}
-            onCancelEdit={() => setEditing(null)}
-          />
-        </section>
+            <ProductForm
+              key={editing?.id ?? 'new'}
+              onSubmitStart={() => setNotice(null)}
+              onSaved={handleSaved}
+              product={editing ?? undefined}
+              onCancelEdit={() => {
+                setEditing(null)
+                setFormOpen(false)
+              }}
+            />
+          </section>
+        )}
       </div>
-    </>
+    </div>
   )
 }
 

@@ -6,9 +6,10 @@ import {
   PageHeader,
   StatusPill,
 } from '../components/ui.tsx'
-import { ORDERS } from '../mocks/sample.ts'
+import { useOrders, useProducts } from '../api/workspace'
+import OrderLimits from '../components/OrderLimits.tsx'
 
-// 발주 작성·관리 (사장님) 화면 — 디자인 시안 (PRD 5절 / US-01·US-02 / F-02)
+// 발주 목록·요약은 백엔드 조회 결과를 사용한다. 작성 폼은 디자인 시안이다.
 // 발주 건 상태: 발주 초안 / 발주 확인 완료 / 공급처 전달 완료 / 입고 대기 / 입고 완료 / 발주 취소
 
 // 상태별로 사장님이 다음에 할 수 있는 일 (US-01·US-02). 취소는 '발주 초안'에서만
@@ -17,22 +18,36 @@ const NEXT_ACTION: Record<string, string | undefined> = {
   '발주 확인 완료': '전달 완료 표시',
 }
 
-// 한도 기준이 확정되기 전까지 사용하는 화면 예시 값
-const SAMPLE_LIMITS = [
-  { product: '서울우유 1000ml', limit: 20, unit: '개' },
-  { product: '종이컵 12oz', limit: 10, unit: '박스' },
-  { product: '바닐라 시럽', limit: 12, unit: '병' },
-  { product: '원두 1kg', limit: 10, unit: '봉' },
-]
-
 function OrderList() {
-  const [product, setProduct] = useState('서울우유 1000ml')
-  const [quantity, setQuantity] = useState('30')
-  const limit = SAMPLE_LIMITS.find((item) => item.product === product.trim())
-  const overLimit =
-    limit !== undefined && quantity !== '' && Number(quantity) > limit.limit
+  const [limits, setLimits] = useState<
+    { product: string; limit: number; unit: string }[]
+  >([])
+  const { data: orderData, error: orderError } = useOrders()
+  const { data: productData } = useProducts()
+  const orders = orderData ?? []
+  const products = productData ?? []
+  const loading = !orderData && !orderError
+  const error =
+    orderError && !orderData
+      ? orderError instanceof Error
+        ? orderError.message
+        : '발주 목록을 불러오지 못했어요'
+      : null
+
+  const [lines, setLines] = useState([
+    { id: 0, product: '', quantity: '', unit: '개' },
+  ])
+  const [nextLineId, setNextLineId] = useState(1)
+
+  function updateLine(id: number, values: Partial<(typeof lines)[number]>) {
+    setLines((current) =>
+      current.map((line) => (line.id === id ? { ...line, ...values } : line)),
+    )
+  }
   const count = (status: string) =>
-    ORDERS.filter((order) => order.status === status).length
+    loading || error
+      ? '—'
+      : orders.filter((order) => order.status === status).length
 
   return (
     <div className="order-page">
@@ -59,8 +74,21 @@ function OrderList() {
             icon={<Icon name="list" />}
             title="발주 목록"
             note="공급처에 보내기 전(발주 초안)에만 취소할 수 있어요"
-            right={<span className="chip">{ORDERS.length}건</span>}
+            right={
+              <span className="chip">
+                {loading || error ? '—' : orders.length}건
+              </span>
+            }
           />
+          {loading && <p role="status">발주 목록을 불러오는 중이에요…</p>}
+          {error && (
+            <p className="banner banner-error" role="alert">
+              {error}
+            </p>
+          )}
+          {!loading && !error && orders.length === 0 && (
+            <p>등록된 발주가 없어요</p>
+          )}
           <div className="table-scroll">
             <table className="data-table">
               <thead>
@@ -75,17 +103,21 @@ function OrderList() {
                 </tr>
               </thead>
               <tbody>
-                {ORDERS.map((order) => {
+                {orders.map((order) => {
                   const next = NEXT_ACTION[order.status]
                   return (
                     <tr key={order.id}>
                       <td>
                         <span className="code-cell">{order.id}</span>
-                        <small className="sub-text">{order.createdAt}</small>
+                        <small className="sub-text">발주 #{order.id}</small>
                       </td>
                       <td className="wrap">{order.supplier}</td>
                       <td className="wrap">
-                        {order.lines[0].product}
+                        {order.lines[0]
+                          ? (products.find(
+                              (item) => item.id === order.lines[0].product_id,
+                            )?.name ?? `상품 #${order.lines[0].product_id}`)
+                          : '—'}
                         {order.lines.length > 1 &&
                           ` 외 ${order.lines.length - 1}개`}
                       </td>
@@ -131,38 +163,113 @@ function OrderList() {
 
           <div className="order-lines">
             <p className="field-label">상품과 수량</p>
-            <div className="order-line">
-              <input
-                aria-label="상품"
-                value={product}
-                onChange={(event) => setProduct(event.target.value)}
-              />
-              <input
-                aria-label="수량"
-                className={`input-qty${overLimit ? ' input-warning' : ''}`}
-                type="number"
-                value={quantity}
-                onChange={(event) => setQuantity(event.target.value)}
-              />
-              <span className="unit">{limit?.unit ?? '—'}</span>
-            </div>
-            {overLimit && (
-              <p className="field-warning">
-                <Icon name="alert" size={16} /> 예시 한도 {limit.limit}
-                {limit.unit}를 넘었어요. 다시 확인해 주세요.
-              </p>
-            )}
-            <div className="order-line">
-              <input aria-label="상품" placeholder="상품 고르기" />
-              <input
-                aria-label="수량"
-                className="input-qty"
-                type="number"
-                placeholder="0"
-              />
-              <span className="unit">—</span>
-            </div>
-            <button type="button" className="button-text">
+            {lines.map((line, index) => {
+              const limit = limits.find(
+                (item) =>
+                  item.product === line.product.trim() &&
+                  item.unit === line.unit,
+              )
+              const overLimit =
+                limit !== undefined && Number(line.quantity) > limit.limit
+              return (
+                <div key={line.id}>
+                  <div className="order-line">
+                    <input
+                      aria-label={`상품 ${index + 1}`}
+                      placeholder="상품 고르기"
+                      list="order-products"
+                      value={line.product}
+                      onChange={(event) => {
+                        const product = products.find(
+                          (item) => item.name === event.target.value,
+                        )
+                        updateLine(line.id, {
+                          product: event.target.value,
+                          ...(product?.base_unit
+                            ? { unit: product.base_unit }
+                            : {}),
+                        })
+                      }}
+                    />
+                    <input
+                      aria-label={`수량 ${index + 1}`}
+                      className={`input-qty${overLimit ? ' input-warning' : ''}`}
+                      type="number"
+                      min="1"
+                      step="1"
+                      placeholder="0"
+                      value={line.quantity}
+                      onChange={(event) =>
+                        updateLine(line.id, { quantity: event.target.value })
+                      }
+                    />
+                    <select
+                      aria-label={`단위 ${index + 1}`}
+                      value={line.unit}
+                      onChange={(event) =>
+                        updateLine(line.id, { unit: event.target.value })
+                      }
+                    >
+                      {Array.from(
+                        new Set([
+                          '개',
+                          '박스',
+                          '병',
+                          '봉',
+                          'kg',
+                          'L',
+                          ...products.flatMap((item) =>
+                            [item.base_unit, item.pack_unit].filter(
+                              (unit): unit is string => Boolean(unit),
+                            ),
+                          ),
+                          line.unit,
+                        ]),
+                      ).map((unit) => (
+                        <option key={unit} value={unit}>
+                          {unit}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className="button-small"
+                      aria-label={`상품 ${index + 1} 삭제`}
+                      disabled={lines.length === 1}
+                      onClick={() =>
+                        setLines((current) =>
+                          current.filter((item) => item.id !== line.id),
+                        )
+                      }
+                    >
+                      −
+                    </button>
+                  </div>
+                  {overLimit && (
+                    <p className="field-warning">
+                      <Icon name="alert" size={16} /> 발주 한도 {limit.limit}
+                      {limit.unit}를 넘었어요. 다시 확인해 주세요.
+                    </p>
+                  )}
+                </div>
+              )
+            })}
+            <datalist id="order-products">
+              {products.map((item) => (
+                <option key={item.id} value={item.name ?? item.product_code} />
+              ))}
+            </datalist>
+            <button
+              type="button"
+              className="button-text"
+              onClick={() => {
+                setLines((current) => [
+                  ...current,
+                  { id: nextLineId, product: '', quantity: '', unit: '개' },
+                ])
+                setNextLineId((current) => current + 1)
+              }}
+            >
               + 상품 추가
             </button>
           </div>
@@ -172,37 +279,7 @@ function OrderList() {
           </button>
         </section>
       </div>
-      <section
-        className="card order-limits"
-        aria-labelledby="order-limits-title"
-      >
-        <CardHead
-          id="order-limits-title"
-          icon={<Icon name="box" />}
-          title="상품별 발주 한도"
-        />
-        <div className="table-scroll">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th scope="col">상품</th>
-                <th scope="col">발주 한도 (예시)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {SAMPLE_LIMITS.map((item) => (
-                <tr key={item.product}>
-                  <td>{item.product}</td>
-                  <td>
-                    {item.limit}
-                    {item.unit}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <OrderLimits onChange={setLimits} />
     </div>
   )
 }

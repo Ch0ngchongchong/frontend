@@ -3,7 +3,7 @@ import { SCREENS, type ScreenKey } from './screens.ts'
 import type { Profile } from '../profile.ts'
 
 // 모든 매장 화면이 함께 쓰는 틀: 흰 배경 + 위쪽 바(로고 · 화면 탭 · 매장/사용자) + 본문
-// 탭은 PRD 5절 화면 목록 그대로. 상품 화면만 API와 이어져 있고 나머지는 디자인 시안이다.
+// URL 경로별 화면은 Next.js가 렌더링하고, 이 틀은 탐색·알림·사용자 상태를 유지한다.
 
 type AppShellProps = {
   // 탭이 아닌 화면(거래처 페이지)이면 null

@@ -37,7 +37,7 @@ function SupplierPage({ supplierId }: { supplierId: string }) {
   const next = supplier.schedule.find((row) => row.status === '입고 대기')
 
   return (
-    <>
+    <div className="supplier-page">
       <PageHeader
         title={supplier.name}
         onSelf={() => nav.openSupplier(supplier.id)}
@@ -93,7 +93,6 @@ function SupplierPage({ supplierId }: { supplierId: string }) {
             icon={<Icon name="box" />}
             title="거래 품목"
             note="이 거래처에서 받는 상품과 기준 단가예요"
-            right={<span className="chip">{supplier.items.length}개</span>}
           />
           <div className="table-scroll">
             <table className="data-table">
@@ -146,7 +145,7 @@ function SupplierPage({ supplierId }: { supplierId: string }) {
           </ol>
         </section>
       </div>
-    </>
+    </div>
   )
 }
 
