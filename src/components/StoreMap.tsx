@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type Ref } from 'react'
-import { SUPPLIERS } from '../mocks/sample.ts'
+import { useSuppliers, type Supplier } from '../api/suppliers.ts'
 
-// 아이소메트릭 장면: 공급처 건물 5곳(식자재 2·유제품·원두·포장재, PRD 1절)이 길로 우리 가게(카페)와 이어지고,
+// 아이소메트릭 장면: 등록된 공급처 건물이 길로 우리 가게(카페)와 이어지고,
 // 배송 상자 캐릭터가 길 위를 오간다. 색은 우리 가게에만 쓰고 다른 가게·길·캐릭터는 무채색이다.
 // 시작 화면에서 쓰는 장면. 우리 가게를 누를 수 있다 (매장 화면은 흰 배경이라 쓰지 않는다)
 
@@ -29,18 +29,28 @@ const KNOWN_POSITIONS: Record<string, number> = {
   'pack-e': 4,
 }
 
-function buildSupplierPositions() {
+function buildSupplierPositions(suppliers: Supplier[]) {
   const positions = new Map<string, (typeof SUPPLIER_POSITIONS)[number]>()
   const occupied = [...SUPPLIER_POSITIONS, { i: 8, j: 8, w: 3, d: 3, h: 2.2 }]
-  for (const supplier of SUPPLIERS) {
-    const index = KNOWN_POSITIONS[supplier.id]
-    if (index !== undefined)
-      positions.set(supplier.id, SUPPLIER_POSITIONS[index])
+  for (const supplier of suppliers) {
+    const id = String(supplier.id)
+    const index = Object.prototype.hasOwnProperty.call(KNOWN_POSITIONS, id)
+      ? KNOWN_POSITIONS[id]
+      : undefined
+    if (index !== undefined) positions.set(id, SUPPLIER_POSITIONS[index])
   }
-  for (const supplier of [...SUPPLIERS].sort((a, b) =>
-    a.id.localeCompare(b.id),
+  for (const supplier of [...suppliers].sort((a, b) =>
+    String(a.id).localeCompare(String(b.id)),
   )) {
-    if (positions.has(supplier.id)) continue
+    const id = String(supplier.id)
+    if (positions.has(id)) continue
+    const available = SUPPLIER_POSITIONS.find(
+      (position) => !Array.from(positions.values()).includes(position),
+    )
+    if (available) {
+      positions.set(id, available)
+      continue
+    }
     const candidates: typeof SUPPLIER_POSITIONS = []
     for (let radius = 1; candidates.length < 8; radius++) {
       for (let x = -radius; x <= radius; x++) {
@@ -66,12 +76,12 @@ function buildSupplierPositions() {
         }
       }
     }
-    const hash = Array.from(supplier.id).reduce(
+    const hash = Array.from(id).reduce(
       (value, char) => (Math.imul(value, 31) + char.charCodeAt(0)) >>> 0,
       0,
     )
     const position = candidates[hash % Math.min(8, candidates.length)]
-    positions.set(supplier.id, position)
+    positions.set(id, position)
     occupied.push(position)
   }
   return positions
@@ -408,6 +418,7 @@ export function Scene({
   onSupplierClick,
   onPanStart,
 }: SceneProps) {
+  const { data: suppliers = [] } = useSuppliers()
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [dragging, setDragging] = useState(false)
   const drag = useRef<{
@@ -418,7 +429,10 @@ export function Scene({
     moved: boolean
   } | null>(null)
   const suppressClick = useRef(false)
-  const positions = useMemo(() => buildSupplierPositions(), [])
+  const positions = useMemo(
+    () => buildSupplierPositions(suppliers),
+    [suppliers],
+  )
   const [reduceMotion, setReduceMotion] = useState(false)
   useEffect(() => {
     const preference = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -429,27 +443,24 @@ export function Scene({
   }, [])
   const [gx, gy] = iso(9.5, 9.5)
   function supplierBuilding(index: number) {
-    const supplier = SUPPLIERS[index]
+    const supplier = suppliers[index]
     if (!supplier) return null
-    const position = positions.get(supplier.id)!
+    const id = String(supplier.id)
+    const position = positions.get(id)!
     return (
       <g
-        key={supplier.id}
+        key={id}
         className={interactive ? 'supplier-building' : undefined}
         role={interactive ? 'button' : undefined}
         tabIndex={interactive ? 0 : undefined}
-        aria-label={
-          interactive
-            ? `${supplier.name.replace('(가상) ', '')} 거래처 열기`
-            : undefined
-        }
-        onClick={interactive ? () => onSupplierClick?.(supplier.id) : undefined}
+        aria-label={interactive ? `${supplier.name} 거래처 열기` : undefined}
+        onClick={interactive ? () => onSupplierClick?.(id) : undefined}
         onKeyDown={
           interactive
             ? (event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
                   event.preventDefault()
-                  onSupplierClick?.(supplier.id)
+                  onSupplierClick?.(id)
                 }
               }
             : undefined
@@ -641,16 +652,17 @@ export function Scene({
       <Crates i={3} j={8} />
       {supplierBuilding(4)}
       <Crates i={12.5} j={14} />
-      {SUPPLIERS.slice(5).map((_, index) => supplierBuilding(index + 5))}
+      {suppliers.slice(5).map((_, index) => supplierBuilding(index + 5))}
 
-      {SUPPLIERS.map((supplier) => {
-        const { i, j, w, d, h } = positions.get(supplier.id)!
+      {suppliers.map((supplier) => {
+        const id = String(supplier.id)
+        const { i, j, w, d, h } = positions.get(id)!
         const [x, y] = iso(i + w / 2, j + d / 2, h)
-        const name = supplier.name.replace('(가상) ', '')
+        const name = supplier.name
         const width = name.length * 15 + 28
         return (
           <g
-            key={supplier.id}
+            key={id}
             transform={`translate(${x} ${y - 22})`}
             pointerEvents="none"
             aria-hidden="true"

@@ -578,34 +578,71 @@ function InspectionReview() {
   return (
     <div className="inspection-page">
       <PageHeader title="입고 확인" screen="inspection" />
-      <div className="field">
-        <label htmlFor="inspection-selector">검수 건 선택</label>
-        <select
-          id="inspection-selector"
-          value={selectedId ?? ''}
-          disabled={!inspections.data}
-          onChange={(event) => {
-            if (event.target.value)
-              void router.push({
-                pathname: '/inspection',
-                query: { id: event.target.value },
-              })
-          }}
-        >
-          <option value="" disabled>
-            검수 건을 선택해 주세요
-          </option>
-          {selectedId !== null &&
-            !inspections.data?.some((item) => item.id === selectedId) && (
-              <option value={selectedId}>검수 #{selectedId}</option>
-            )}
-          {inspections.data?.map((item) => (
-            <option key={item.id} value={item.id}>
-              검수 #{item.id} · 발주 #{item.purchase_order_id} · {item.status}
+      <section
+        className="card inspection-picker"
+        aria-labelledby="inspection-picker-title"
+      >
+        <div className="card-head">
+          <div>
+            <label
+              className="card-title"
+              id="inspection-picker-title"
+              htmlFor="inspection-selector"
+            >
+              <Icon name="list" size={22} />
+              검수 건 선택
+            </label>
+            <p className="card-note" id="inspection-picker-help">
+              확인할 명세서를 선택해 주세요
+            </p>
+          </div>
+          {inspections.data && (
+            <span className="chip">{inspections.data.length}건</span>
+          )}
+        </div>
+        <div className="inspection-picker-control">
+          <select
+            id="inspection-selector"
+            aria-describedby="inspection-picker-help"
+            value={selectedId ?? ''}
+            disabled={!inspections.data || inspections.data.length === 0}
+            onChange={(event) => {
+              if (event.target.value)
+                void router.push({
+                  pathname: '/inspection',
+                  query: { id: event.target.value },
+                })
+            }}
+          >
+            <option value="" disabled>
+              {!inspections.data
+                ? '검수 목록을 불러오는 중…'
+                : inspections.data.length === 0
+                  ? '선택할 검수 건이 없어요'
+                  : '검수 건을 선택해 주세요'}
             </option>
-          ))}
-        </select>
-      </div>
+            {selectedId !== null &&
+              !inspections.data?.some((item) => item.id === selectedId) && (
+                <option value={selectedId}>검수 #{selectedId}</option>
+              )}
+            {inspections.data?.map((item) => (
+              <option key={item.id} value={item.id}>
+                검수 #{item.id} · 발주 #{item.purchase_order_id} · {item.status}
+              </option>
+            ))}
+          </select>
+          <svg
+            className="inspection-picker-chevron"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            aria-hidden="true"
+          >
+            <path d="m7 10 5 5 5-5" />
+          </svg>
+        </div>
+      </section>
       {inspections.error && (
         <p className="field-error" role="alert">
           검수 목록을 불러오지 못했어요: {errorMessage(inspections.error)}{' '}

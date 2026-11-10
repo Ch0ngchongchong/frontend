@@ -8,7 +8,7 @@ import {
 import { useNav } from '../components/nav.ts'
 import { Scene } from '../components/StoreMap.tsx'
 import { Icon } from '../components/ui.tsx'
-import { SUPPLIERS } from '../mocks/sample.ts'
+import { useSuppliers } from '../api/suppliers.ts'
 
 // 시작 화면: 우리 가게와 거래처가 이어진 장면을 보여 주고,
 // 우리 가게를 누르면 옆에 카드가 열려 '우리 매장으로 가기'로 매장 화면에 들어간다.
@@ -20,6 +20,7 @@ const EDGE = 16
 // 연결된 거래처 목록 (커서를 올리거나 키보드로 고르면 열림, 많으면 목록 안에서 스크롤)
 function SupplierLink() {
   const nav = useNav()
+  const { data: suppliers = [], error, isLoading } = useSuppliers()
   const [open, setOpen] = useState(false)
   const closeTimer = useRef<number | undefined>(undefined)
 
@@ -62,7 +63,7 @@ function SupplierLink() {
         onClick={() => setOpen((value) => !value)}
       >
         <span className="dot" aria-hidden="true" />
-        사장님 · 거래처 {SUPPLIERS.length}곳과 연결
+        사장님 · 거래처 {suppliers.length}곳과 연결
         <span className="chevron" aria-hidden="true">
           ›
         </span>
@@ -76,14 +77,21 @@ function SupplierLink() {
           aria-label="연결된 거래처"
         >
           <p className="supplier-flyout-title">
-            연결된 거래처 <strong>{SUPPLIERS.length}</strong>곳
+            연결된 거래처 <strong>{suppliers.length}</strong>곳
           </p>
+          {error ? (
+            <p role="alert">거래처 목록을 불러오지 못했습니다.</p>
+          ) : isLoading ? (
+            <p>거래처 목록을 불러오는 중입니다.</p>
+          ) : suppliers.length === 0 ? (
+            <p>등록된 거래처가 없습니다.</p>
+          ) : null}
           <ul className="supplier-flyout-list">
-            {SUPPLIERS.map((supplier) => (
-              <li key={supplier.id}>
+            {suppliers.map((supplier) => (
+              <li key={String(supplier.id)}>
                 <button
                   type="button"
-                  onClick={() => nav.openSupplier(supplier.id)}
+                  onClick={() => nav.openSupplier(String(supplier.id))}
                 >
                   <span className="supplier-avatar" aria-hidden="true">
                     <Icon name="store" size={18} />
