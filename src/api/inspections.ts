@@ -24,6 +24,8 @@ export type Inspection = {
   purchase_order_id: number
   status: string
   ai_draft: boolean
+  exception_reason: string | null
+  reject_reason: string | null
   document: {
     id: number
     filename: string
@@ -72,5 +74,76 @@ export function useInventory() {
     ['inventory', '1'],
     () => request<InventoryItem[]>('/inventory'),
     { revalidateOnMount: true },
+  )
+}
+
+// 예외 건 목록 (US-06). 새 엔드포인트가 아니라 기존 목록 조회를 상태로 거른다.
+export function useExceptionInspections() {
+  return useSWR(['inspections', '1', '사장 승인 대기'], () =>
+    request<Inspection[]>('/inspections?status=사장 승인 대기'),
+  )
+}
+
+// 사장 승인·반려와 그 밖의 상태 전이 (US-06, docs/api/US-06-07-inspections.md)
+export function approveInspection(id: number) {
+  return request<Inspection>(`/inspections/${id}/approve`, { method: 'POST' })
+}
+
+export function rejectInspection(id: number, reason: string) {
+  return request<Inspection>(`/inspections/${id}/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  })
+}
+
+// 사장 처리 전 직원 확정 취소
+export function cancelConfirmation(id: number) {
+  return request<Inspection>(`/inspections/${id}/cancel-confirmation`, {
+    method: 'POST',
+  })
+}
+
+// 반려 건 재검수 시작 (직원)
+export function reinspect(id: number) {
+  return request<Inspection>(`/inspections/${id}/reinspect`, {
+    method: 'POST',
+  })
+}
+
+// 반려 건 검수 종료 (사장님)
+export function closeInspection(id: number) {
+  return request<Inspection>(`/inspections/${id}/close`, { method: 'POST' })
+}
+
+// 변경 이력 (US-07)
+export type HistoryEntryRaw = {
+  id: number
+  changed_by: number | null
+  changed_at: string
+  kind: string
+  old_value: Record<string, unknown> | null
+  new_value: Record<string, unknown> | null
+}
+
+export function useInspectionHistory(id: number | null) {
+  return useSWR(id === null ? null : ['inspection-history', '1', id], () =>
+    request<HistoryEntryRaw[]>(`/inspections/${id}/history`),
+  )
+}
+
+// 판독 로그: 토큰·비용·처리 시간 (US-03, US-07)
+export type ReadingLogRaw = {
+  id: number
+  document_id: number
+  input_tokens: number | null
+  output_tokens: number | null
+  cost: number | null
+  elapsed_seconds: number
+  outcome: string
+}
+
+export function useReadingLogs(id: number | null) {
+  return useSWR(id === null ? null : ['reading-logs', '1', id], () =>
+    request<ReadingLogRaw[]>(`/inspections/${id}/reading-logs`),
   )
 }
