@@ -1,13 +1,107 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { CardHead, Icon, PageHeader, Pill } from '../components/ui.tsx'
-import { HISTORY, READ_LOG } from '../mocks/sample.ts'
+import {
+  useInspections,
+  useInspectionHistory,
+  useReadingLogs,
+  type HistoryEntryRaw,
+} from '../api/inspections'
+import { useProducts } from '../api/workspace'
+import type { Product } from '../api/products'
 
-// 변경 이력 (사장님) 화면 — 디자인 시안 (PRD 5절 / US-07 / F-07)
+// 변경 이력 (사장님) 화면 (PRD 5절 / US-07 / F-07)
 // 입고 검수 건별 변경자·시각·이전 값·새 값을 시간순으로 보여 준다. 조회만, 수정·삭제 불가
 
-const INSPECTION_IDS = ['IN-1048', 'IN-1047', 'IN-1046']
+const ACTION_LABELS: Record<string, string> = {
+  approve: '사장 승인',
+  reject: '반려',
+  'cancel-confirmation': '확정 취소',
+  reinspect: '재검수 시작',
+  close: '검수 종료',
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error
+    ? error.message
+    : '불러오지 못했어요. 다시 시도해 주세요.'
+}
+
+function formatAt(iso: string) {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return iso
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${date.getMonth() + 1}월 ${date.getDate()}일 ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function toTimelineEntry(entry: HistoryEntryRaw, products: Product[]) {
+  const by = `사용자 #${entry.changed_by ?? '-'}`
+  const kind = ACTION_LABELS[entry.kind] ?? entry.kind
+  const old = entry.old_value
+  const next = entry.new_value
+
+  if (next && 'status' in next) {
+    const reason = typeof next.reason === 'string' ? next.reason : null
+    return {
+      at: formatAt(entry.changed_at),
+      by,
+      kind,
+      field: '상태',
+      oldValue: String(old?.status ?? '-'),
+      newValue: `${String(next.status)}${reason ? ` (사유: ${reason})` : ''}`,
+    }
+  }
+  if (entry.kind === '재고 반영' && next) {
+    const productId = Number(next.product_id)
+    const product = products.find((item) => item.id === productId)
+    return {
+      at: formatAt(entry.changed_at),
+      by,
+      kind,
+      field: product
+        ? `${product.product_code} · ${product.name ?? '이름 없음'}`
+        : `상품 #${productId} 재고`,
+      oldValue: '-',
+      newValue: `+${String(next.quantity)}`,
+    }
+  }
+  if (entry.kind === '예외 사진 추가' && next) {
+    return {
+      at: formatAt(entry.changed_at),
+      by,
+      kind,
+      field: '예외 사진',
+      oldValue: '-',
+      newValue: `사진 #${String(next.photo_id)} 추가`,
+    }
+  }
+  return {
+    at: formatAt(entry.changed_at),
+    by,
+    kind,
+    field: kind,
+    oldValue: old ? JSON.stringify(old) : '-',
+    newValue: next ? JSON.stringify(next) : '-',
+  }
+}
+
 function ChangeHistory() {
-  const [selectedId, setSelectedId] = useState(INSPECTION_IDS[0])
+  const { data: inspectionData, error: listError } = useInspections()
+  const { data: productData } = useProducts()
+  const products: Product[] = productData ?? []
+  const ids = useMemo(
+    () => [...(inspectionData ?? [])].map((item) => item.id).sort((a, b) => b - a),
+    [inspectionData],
+  )
+
+  const [pickedId, setPickedId] = useState<number | null>(null)
+  // pickedId가 없거나 더 이상 목록에 없으면(예: 새 데이터로 교체) 첫 건으로 돌아간다
+  const selectedId =
+    pickedId !== null && ids.includes(pickedId) ? pickedId : (ids[0] ?? null)
+
+  const { data: historyData, error: historyError } =
+    useInspectionHistory(selectedId)
+  const { data: readingLogs } = useReadingLogs(selectedId)
+
   const scrollRef = useRef<HTMLDivElement>(null)
   const [edges, setEdges] = useState({ left: false, right: false })
   useEffect(() => {
@@ -20,11 +114,12 @@ function ChangeHistory() {
       update()
     }
     const update = () => {
-      const center =
-        scroller.getBoundingClientRect().left + scroller.clientWidth / 2
       const buttons = Array.from(
         scroller.querySelectorAll<HTMLButtonElement>('.filter-chip'),
       )
+      if (buttons.length === 0) return
+      const center =
+        scroller.getBoundingClientRect().left + scroller.clientWidth / 2
       const index = buttons.reduce((closest, button, current) => {
         const rect = button.getBoundingClientRect()
         const nearest = buttons[closest].getBoundingClientRect()
@@ -33,7 +128,7 @@ function ChangeHistory() {
           ? current
           : closest
       }, 0)
-      setSelectedId(INSPECTION_IDS[index])
+      setPickedId(ids[index] ?? null)
       setEdges({
         left: scroller.scrollLeft > 1,
         right:
@@ -62,6 +157,7 @@ function ChangeHistory() {
       const buttons = Array.from(
         scroller.querySelectorAll<HTMLButtonElement>('.filter-chip'),
       )
+      if (buttons.length === 0) return
       const center =
         scroller.getBoundingClientRect().left + scroller.clientWidth / 2
       const firstInput = wheelTarget === null
@@ -118,59 +214,79 @@ function ChangeHistory() {
       window.clearTimeout(wheelTimer)
       observer.disconnect()
     }
-  }, [])
-  const hasRecords = selectedId === READ_LOG.inspectionId
-  const history = hasRecords ? HISTORY : []
+  }, [ids])
+
+  const latestLog = readingLogs && readingLogs.length > 0
+    ? readingLogs[readingLogs.length - 1]
+    : null
+  const history = (historyData ?? []).map((entry) =>
+    toTimelineEntry(entry, products),
+  )
+
   return (
     <>
       <PageHeader title="변경 이력" screen="history" />
 
-      <div
-        className={`history-filter-wrap${edges.left ? ' fade-left' : ''}${edges.right ? ' fade-right' : ''}`}
-      >
-        <span className="history-wheel-marker marker-top" aria-hidden="true" />
-        <div className="history-filter-scroll" ref={scrollRef}>
-          <div
-            className="filter-row"
-            role="group"
-            aria-label="입고 검수 건 고르기"
-          >
-            {INSPECTION_IDS.map((id, index) => (
-              <button
-                type="button"
-                key={id}
-                className={`filter-chip wheel-distance-${Math.min(3, Math.abs(index - INSPECTION_IDS.indexOf(selectedId)))}${id === selectedId ? ' is-selected' : ''}`}
-                aria-pressed={id === selectedId}
-                onClick={(event) => {
-                  const scroller = scrollRef.current
-                  if (!scroller) return
-                  const button = event.currentTarget.getBoundingClientRect()
-                  const container = scroller.getBoundingClientRect()
-                  scroller.scrollBy({
-                    left:
-                      button.left +
-                      button.width / 2 -
-                      (container.left + scroller.clientWidth / 2),
-                    behavior: window.matchMedia(
-                      '(prefers-reduced-motion: reduce)',
-                    ).matches
-                      ? 'instant'
-                      : 'smooth',
-                  })
-                }}
-              >
-                <Icon name="cart" size={16} /> {id}
-              </button>
-            ))}
-          </div>
-        </div>
-        <span
-          className="history-wheel-marker marker-bottom"
-          aria-hidden="true"
-        />
-      </div>
+      {listError && (
+        <p className="field-error" role="alert">
+          {errorMessage(listError)}
+        </p>
+      )}
 
-      {hasRecords && (
+      {!listError && ids.length === 0 && (
+        <div className="empty-state">
+          <p>조회할 입고 검수 건이 없어요</p>
+        </div>
+      )}
+
+      {ids.length > 0 && (
+        <div
+          className={`history-filter-wrap${edges.left ? ' fade-left' : ''}${edges.right ? ' fade-right' : ''}`}
+        >
+          <span className="history-wheel-marker marker-top" aria-hidden="true" />
+          <div className="history-filter-scroll" ref={scrollRef}>
+            <div
+              className="filter-row"
+              role="group"
+              aria-label="입고 검수 건 고르기"
+            >
+              {ids.map((id, index) => (
+                <button
+                  type="button"
+                  key={id}
+                  className={`filter-chip wheel-distance-${Math.min(3, Math.abs(index - ids.indexOf(selectedId ?? ids[0])))}${id === selectedId ? ' is-selected' : ''}`}
+                  aria-pressed={id === selectedId}
+                  onClick={(event) => {
+                    const scroller = scrollRef.current
+                    if (!scroller) return
+                    const button = event.currentTarget.getBoundingClientRect()
+                    const container = scroller.getBoundingClientRect()
+                    scroller.scrollBy({
+                      left:
+                        button.left +
+                        button.width / 2 -
+                        (container.left + scroller.clientWidth / 2),
+                      behavior: window.matchMedia(
+                        '(prefers-reduced-motion: reduce)',
+                      ).matches
+                        ? 'instant'
+                        : 'smooth',
+                    })
+                  }}
+                >
+                  <Icon name="cart" size={16} /> #{id}
+                </button>
+              ))}
+            </div>
+          </div>
+          <span
+            className="history-wheel-marker marker-bottom"
+            aria-hidden="true"
+          />
+        </div>
+      )}
+
+      {latestLog && (
         <section className="stats" aria-label="판독 기록">
           <article className="card stat">
             <div className="stat-top">
@@ -180,10 +296,12 @@ function ChangeHistory() {
               </span>
             </div>
             <p className="stat-value">
-              {READ_LOG.cost}
-              <small>원</small>
+              {latestLog.cost ?? '—'}
+              {latestLog.cost !== null && <small>USD</small>}
             </p>
-            <p className="stat-sub">{READ_LOG.inspectionId} 판독 1회</p>
+            <p className="stat-sub">
+              검수 #{selectedId} 판독 {latestLog.outcome}
+            </p>
           </article>
           <article className="card stat">
             <div className="stat-top">
@@ -193,7 +311,7 @@ function ChangeHistory() {
               </span>
             </div>
             <p className="stat-value">
-              {READ_LOG.elapsedSeconds}
+              {latestLog.elapsed_seconds}
               <small>초</small>
             </p>
             <p className="stat-sub">업로드부터 직원 확인 대기까지</p>
@@ -206,14 +324,19 @@ function ChangeHistory() {
               </span>
             </div>
             <p className="stat-value">
-              {(READ_LOG.inputTokens + READ_LOG.outputTokens).toLocaleString(
-                'ko-KR',
-              )}
+              {latestLog.input_tokens !== null &&
+              latestLog.output_tokens !== null
+                ? (latestLog.input_tokens + latestLog.output_tokens).toLocaleString(
+                    'ko-KR',
+                  )
+                : '—'}
               <small>개</small>
             </p>
             <p className="stat-sub">
-              입력 {READ_LOG.inputTokens.toLocaleString('ko-KR')} · 출력{' '}
-              {READ_LOG.outputTokens.toLocaleString('ko-KR')}
+              {latestLog.input_tokens !== null &&
+              latestLog.output_tokens !== null
+                ? `입력 ${latestLog.input_tokens.toLocaleString('ko-KR')} · 출력 ${latestLog.output_tokens.toLocaleString('ko-KR')}`
+                : '규칙 기반 판독이라 토큰이 없어요'}
             </p>
           </article>
         </section>
@@ -223,11 +346,15 @@ function ChangeHistory() {
         <CardHead
           id="timeline-title"
           icon={<Icon name="clock" />}
-          title={`${selectedId} 변경 기록`}
+          title={selectedId !== null ? `검수 #${selectedId} 변경 기록` : '변경 기록'}
           note="기록은 누구도 고치거나 지울 수 없어요"
           right={<span className="chip">{history.length}개</span>}
         />
-        {history.length === 0 ? (
+        {historyError ? (
+          <p className="field-error" role="alert">
+            {errorMessage(historyError)}
+          </p>
+        ) : history.length === 0 ? (
           <div className="empty-state">
             <p>표시할 변경 기록이 없어요</p>
           </div>
