@@ -48,6 +48,22 @@ function AppShell({
   useEffect(() => {
     if (notificationsOpen) dialogRef.current?.showModal()
   }, [notificationsOpen])
+  // 좁은 화면에서 탭 줄은 가로로 밀어 보므로, 현재 화면 탭이 잘려 있으면 가운데로 끌어온다.
+  const tabsRef = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const tabs = tabsRef.current
+    const active = tabs?.querySelector<HTMLElement>('[aria-current="page"]')
+    if (!tabs || !active) return
+    const tabsBox = tabs.getBoundingClientRect()
+    const activeBox = active.getBoundingClientRect()
+    if (
+      activeBox.left >= tabsBox.left - 1 &&
+      activeBox.right <= tabsBox.right + 1
+    )
+      return
+    tabs.scrollLeft +=
+      activeBox.left - tabsBox.left - (tabsBox.width - activeBox.width) / 2
+  }, [current])
   const role =
     SCREENS.find((screen) => screen.key === current)?.role ?? '사장님'
 
@@ -76,7 +92,7 @@ function AppShell({
           </span>
         </button>
 
-        <nav className="tabs" aria-label="화면">
+        <nav className="tabs" aria-label="화면" ref={tabsRef}>
           {SCREENS.map((screen) => {
             const active = screen.key === current
             return (

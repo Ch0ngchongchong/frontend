@@ -50,6 +50,29 @@ export function loadProfile(): Profile {
   return DEFAULT_PROFILE
 }
 
+// 브라우저 저장소를 외부 스토어로 다룬다(useSyncExternalStore용).
+// 스냅샷은 저장할 때만 새로 읽어, 렌더링마다 같은 객체를 돌려준다.
+const listeners = new Set<() => void>()
+let snapshot: Profile | null = null
+
+export function subscribeProfile(listener: () => void) {
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+  }
+}
+
+export function getProfileSnapshot(): Profile {
+  return (snapshot ??= loadProfile())
+}
+
+export function getServerProfileSnapshot(): Profile {
+  return DEFAULT_PROFILE
+}
+
+// 저장에 실패하면(저장 공간 부족 등) 예외를 그대로 던진다.
 export function saveProfile(profile: Profile) {
   localStorage.setItem(KEY, JSON.stringify(profile))
+  snapshot = null
+  listeners.forEach((listener) => listener())
 }

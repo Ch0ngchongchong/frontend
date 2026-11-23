@@ -1,13 +1,14 @@
 import { useState, type ChangeEvent, type FormEvent } from 'react'
 import { Icon, PageHeader } from '../components/ui.tsx'
 import { useNav } from '../components/nav.ts'
-import { saveProfile, type Profile } from '../profile.ts'
+import type { Profile } from '../profile.ts'
 
 function MyPage({
   profile,
   onSave,
 }: {
   profile: Profile
+  // 브라우저에 저장한다. 실패하면 예외를 던진다.
   onSave: (profile: Profile) => void
 }) {
   const [values, setValues] = useState(profile)
@@ -28,7 +29,6 @@ function MyPage({
       return
     }
     try {
-      saveProfile(next)
       onSave(next)
       setValues(next)
       setMessage('프로필을 이 브라우저에 저장했어요.')
