@@ -20,6 +20,8 @@ export type InspectionLine = {
   match_status: string
   // 'staff'면 판독에 없던 줄을 직원이 추가한 것이다 (US-04). 서버가 보내지 않으면 판독 줄로 본다.
   source?: 'ocr' | 'staff'
+  // 판독이 확신하지 못한 읽은 값 필드 이름 (`quantity`, `unit_price` 등). 서버가 아직 보내지 않는다.
+  uncertain_fields?: string[]
 }
 export type Inspection = {
   id: number
