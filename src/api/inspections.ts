@@ -18,6 +18,8 @@ export type InspectionLine = {
   base_quantity: number | null
   order_quantity: number | null
   match_status: string
+  // 'staff'면 판독에 없던 줄을 직원이 추가한 것이다 (US-04). 서버가 보내지 않으면 판독 줄로 본다.
+  source?: 'ocr' | 'staff'
 }
 export type Inspection = {
   id: number
@@ -75,6 +77,23 @@ export function useInventory() {
     () => request<InventoryItem[]>('/inventory'),
     { revalidateOnMount: true },
   )
+}
+
+// 판독 결과에 없는 줄 추가 (US-04, `직원 확인 대기`에서만). 명세서에 적힌 값을 그대로 보낸다.
+// 서버 계약은 README 참고. 성공하면 갱신된 검수 건 전체를 돌려받는다.
+export type InspectionLineInput = {
+  name: string
+  product_id: number | null
+  quantity: number | null
+  unit: string | null
+  unit_price: number | null
+}
+
+export function addInspectionLine(id: number, input: InspectionLineInput) {
+  return request<Inspection>(`/inspections/${id}/lines`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
 }
 
 // 예외 건 목록 (US-06). 새 엔드포인트가 아니라 기존 목록 조회를 상태로 거른다.

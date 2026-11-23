@@ -10,6 +10,7 @@ import {
 } from 'react'
 import { useRouter } from 'next/router'
 import AppShell from './components/AppShell'
+import ReadingNotifier from './components/ReadingNotifier'
 import { NavContext, type Nav } from './components/nav'
 import { SCREENS } from './components/screens'
 import {
@@ -102,6 +103,7 @@ export default function App({ children }: { children: ReactNode }) {
             {content}
           </AppShell>
         )}
+        <ReadingNotifier />
       </NavContext.Provider>
     </WorkspaceContext.Provider>
   )

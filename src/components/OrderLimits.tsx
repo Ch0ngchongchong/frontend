@@ -1,8 +1,51 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { CardHead, Icon } from './ui.tsx'
+import type { Product } from '../api/products'
 
-type OrderLimit = { id: number; product: string; limit: number; unit: string }
+export type OrderLimit = {
+  id: number
+  product: string
+  limit: number
+  unit: string
+}
 const ENDPOINT = '/api/purchase-order-limits'
+
+// 한도는 상품명·단위로 저장한다(README 계약). 발주 수량은 기준 단위라서
+// 상품명이 같고 단위가 상품의 기준 단위와 같은 한도만 적용한다.
+function findLimit(limits: OrderLimit[], product: Product | undefined) {
+  if (!product?.name) return undefined
+  return limits.find(
+    (item) => item.product === product.name && item.unit === product.base_unit,
+  )
+}
+
+export type OverLimit = {
+  productId: number
+  product: Product | undefined
+  quantity: number
+  limit: OrderLimit
+}
+
+// R7: 한 발주 안에서 같은 상품의 수량을 합쳐 한도와 비교한다.
+export function findOverLimits(
+  lines: { product_id: number; quantity: number }[],
+  products: Product[],
+  limits: OrderLimit[],
+): OverLimit[] {
+  const totals = new Map<number, number>()
+  for (const line of lines)
+    totals.set(
+      line.product_id,
+      (totals.get(line.product_id) ?? 0) + line.quantity,
+    )
+  return [...totals].flatMap(([productId, quantity]) => {
+    const product = products.find((item) => item.id === productId)
+    const limit = findLimit(limits, product)
+    return limit && quantity > limit.limit
+      ? [{ productId, product, quantity, limit }]
+      : []
+  })
+}
 
 async function request(path = '', init?: RequestInit) {
   const response = await fetch(`${ENDPOINT}${path}`, {

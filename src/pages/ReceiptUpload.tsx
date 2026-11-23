@@ -28,8 +28,15 @@ function ReceiptUpload() {
   const reading = inspections.filter((item) => item.status === '판독 중')
   const ready = inspections.filter((item) => item.status === '직원 확인 대기')
   const available = [...waiting, ...reading, ...ready]
+  // 판독 실패 알림·입고 확인의 다시 올리기 링크는 ?id=검수ID로 대상을 지정한다.
+  const rawQueryId = Array.isArray(router.query.id)
+    ? router.query.id[0]
+    : router.query.id
+  const queryId =
+    rawQueryId && /^\d+$/.test(rawQueryId) ? Number(rawQueryId) : null
   const selected =
-    available.find((item) => item.id === selectedId) ?? available[0]
+    available.find((item) => item.id === (selectedId ?? queryId)) ??
+    available[0]
   const canUpload = selected?.status === '업로드 대기' && !uploading
 
   function supplier(item: Inspection) {

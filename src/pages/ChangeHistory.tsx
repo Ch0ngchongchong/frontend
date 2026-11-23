@@ -18,6 +18,7 @@ const ACTION_LABELS: Record<string, string> = {
   'cancel-confirmation': '확정 취소',
   reinspect: '재검수 시작',
   close: '검수 종료',
+  '직원 줄 추가': '직원이 추가한 줄',
 }
 
 function errorMessage(error: unknown) {
@@ -62,6 +63,17 @@ function toTimelineEntry(entry: HistoryEntryRaw, products: Product[]) {
         : `상품 #${productId} 재고`,
       oldValue: '-',
       newValue: `+${String(next.quantity)}`,
+    }
+  }
+  if (entry.kind === '직원 줄 추가' && next) {
+    const quantity = next.quantity ?? '-'
+    return {
+      at: formatAt(entry.changed_at),
+      by,
+      kind,
+      field: `${String(next.line_no ?? '-')}행`,
+      oldValue: '-',
+      newValue: `${String(next.name ?? '')} · 수량 ${String(quantity)}${next.unit ? ` ${String(next.unit)}` : ''}`,
     }
   }
   if (entry.kind === '예외 사진 추가' && next) {
