@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react'
 import { useRouter } from 'next/router'
 import { useSWRConfig } from 'swr'
 import {
@@ -21,6 +27,7 @@ import {
 } from '../api/inspections'
 import { useProducts } from '../api/workspace'
 import type { Product } from '../api/products'
+import { checkLine, countFlagged, type ReadField } from '../inspectionChecks'
 
 function errorMessage(error: unknown) {
   return error instanceof Error
@@ -29,6 +36,17 @@ function errorMessage(error: unknown) {
 }
 
 type LineDraft = { product: string; quantity: string }
+
+// 불확실한 읽은 값 하나를 칸 안에서 짚어 준다. 이유는 칸 아래 "확인 필요" 줄에 글자로 적는다.
+function ReadValue({
+  flagged,
+  children,
+}: {
+  flagged: boolean
+  children: ReactNode
+}) {
+  return flagged ? <mark className="value-check">{children}</mark> : children
+}
 
 // 판독 결과에 없는 줄을 직원이 명세서를 보고 추가한다 (US-04 줄 누락).
 // 열 때마다 새로 마운트되어 입력값이 비워진다.
@@ -221,6 +239,9 @@ function ReviewDetail({
   const differs = inspection.lines.filter(
     (line) => line.match_status !== '일치' && line.match_status !== '확인 필요',
   ).length
+  const lineChecks = inspection.lines.map(checkLine)
+  const flagged = countFlagged(lineChecks)
+  const flaggedTotal = flagged.uncertain + flagged.ruleFail
   const productName = (id: number) => {
     const product = products.find((item) => item.id === id)
     return product
@@ -402,6 +423,18 @@ function ReviewDetail({
               tone: 'danger',
               icon: 'alert',
             },
+            {
+              label: '불확실한 값',
+              value: flagged.uncertain,
+              tone: 'warning',
+              icon: 'scan',
+            },
+            {
+              label: '규칙 검증 실패',
+              value: flagged.ruleFail,
+              tone: 'danger',
+              icon: 'xCircle',
+            },
           ]}
         />
       )}
@@ -432,8 +465,11 @@ function ReviewDetail({
                   </tr>
                 </thead>
                 <tbody>
-                  {inspection.lines.map((line) => {
+                  {inspection.lines.map((line, index) => {
                     const draft = draftFor(line)
+                    const checks = lineChecks[index]
+                    const uncertain = (field: ReadField) =>
+                      checks.uncertain.some((item) => item.field === field)
                     return (
                       <tr
                         key={line.id}
@@ -443,24 +479,61 @@ function ReviewDetail({
                             : undefined
                         }
                       >
-                        <td>
+                        <td
+                          className={
+                            checks.ruleFail
+                              ? 'cell-fail'
+                              : checks.uncertain.length > 0
+                                ? 'cell-check'
+                                : undefined
+                          }
+                        >
                           <strong>
-                            {line.line_no}. {line.read.name}
+                            {line.line_no}.{' '}
+                            <ReadValue flagged={uncertain('name')}>
+                              {line.read.name}
+                            </ReadValue>
                           </strong>
                           <div>
-                            {line.read.quantity ?? '—'}{' '}
-                            {line.read.unit ?? '단위 없음'}
+                            <ReadValue flagged={uncertain('quantity')}>
+                              {line.read.quantity ?? '—'}
+                            </ReadValue>{' '}
+                            <ReadValue flagged={uncertain('unit')}>
+                              {line.read.unit ?? '단위 없음'}
+                            </ReadValue>
                           </div>
-                          <div>
+                          <div
+                            className={
+                              checks.ruleFail ? 'value-fail' : undefined
+                            }
+                          >
                             단가{' '}
-                            {line.read.unit_price === null
-                              ? '—'
-                              : `${line.read.unit_price.toLocaleString('ko-KR')}원`}{' '}
+                            <ReadValue flagged={uncertain('unit_price')}>
+                              {line.read.unit_price === null
+                                ? '—'
+                                : `${line.read.unit_price.toLocaleString('ko-KR')}원`}
+                            </ReadValue>{' '}
                             · 금액{' '}
-                            {line.read.amount === null
-                              ? '—'
-                              : `${line.read.amount.toLocaleString('ko-KR')}원`}
+                            <ReadValue flagged={uncertain('amount')}>
+                              {line.read.amount === null
+                                ? '—'
+                                : `${line.read.amount.toLocaleString('ko-KR')}원`}
+                            </ReadValue>
                           </div>
+                          {checks.ruleFail && (
+                            <small className="cell-hint hint-fail">
+                              <strong>규칙 검증 실패</strong> ·{' '}
+                              {checks.ruleFail}
+                            </small>
+                          )}
+                          {checks.uncertain.length > 0 && (
+                            <small className="cell-hint hint-check">
+                              <strong>확인 필요</strong> ·{' '}
+                              {checks.uncertain
+                                .map((item) => item.reason)
+                                .join(', ')}
+                            </small>
+                          )}
                           {line.source === 'staff' ? (
                             <Pill tone="accent" icon="plus">
                               직원이 추가한 줄
@@ -533,7 +606,9 @@ function ReviewDetail({
                         </td>
                         <td
                           className={
-                            line.quantity === null ? 'cell-check' : undefined
+                            line.quantity === null || uncertain('quantity')
+                              ? 'cell-check'
+                              : undefined
                           }
                         >
                           <input
@@ -556,6 +631,12 @@ function ReviewDetail({
                           <small>
                             {line.unit ?? '단위 없음'} · 비우면 미확인
                           </small>
+                          {uncertain('quantity') && (
+                            <small className="cell-hint hint-check">
+                              <strong>확인 필요</strong> · 명세서에서 수량을
+                              직접 확인해 주세요
+                            </small>
+                          )}
                         </td>
                         <td className="conversion-cell">
                           {line.base_quantity === null
@@ -592,7 +673,10 @@ function ReviewDetail({
             </div>
           </div>
           <p className="legend">
-            <span className="legend-item legend-check">확인 필요</span>
+            <span className="legend-item legend-check">
+              확인 필요 · 불확실한 값
+            </span>
+            <span className="legend-item legend-fail">규칙 검증 실패</span>
             <span className="legend-item legend-differs">발주와 다른 줄</span>
           </p>
           {compared && inspection.missing_order_lines.length > 0 && (
@@ -645,6 +729,13 @@ function ReviewDetail({
                   ? '발주와 모두 일치해요. 확정하면 재고에 반영돼요.'
                   : '발주와 다른 내용이 있어요. 확정하면 사장님 승인 대기로 넘어가고 재고는 유지돼요.'}
               </p>
+              {ready && flaggedTotal > 0 && (
+                <p className="card-note">
+                  강조한 칸 {flaggedTotal}개(불확실한 값 {flagged.uncertain}개,
+                  규칙 검증 실패 {flagged.ruleFail}개)를 명세서 원본과 비교한 뒤
+                  확정해 주세요.
+                </p>
+              )}
             </>
           )}
           {hasUnsaved && (
