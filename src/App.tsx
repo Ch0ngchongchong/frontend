@@ -3,6 +3,7 @@ import {
   useContext,
   useEffect,
   useState,
+  useSyncExternalStore,
   type Dispatch,
   type SetStateAction,
   type ReactNode,
@@ -11,7 +12,13 @@ import { useRouter } from 'next/router'
 import AppShell from './components/AppShell'
 import { NavContext, type Nav } from './components/nav'
 import { SCREENS } from './components/screens'
-import { DEFAULT_PROFILE, loadProfile, type Profile } from './profile'
+import {
+  getProfileSnapshot,
+  getServerProfileSnapshot,
+  saveProfile,
+  subscribeProfile,
+  type Profile,
+} from './profile'
 import type { InspectionPhoto } from './components/InspectionPhotos'
 
 type Workspace = {
@@ -29,7 +36,12 @@ export function useWorkspace() {
 
 export default function App({ children }: { children: ReactNode }) {
   const router = useRouter()
-  const [profile, setProfile] = useState(DEFAULT_PROFILE)
+  // 서버 렌더링·하이드레이션 때는 기본 프로필, 그 뒤에는 브라우저에 저장된 프로필을 쓴다.
+  const profile = useSyncExternalStore(
+    subscribeProfile,
+    getProfileSnapshot,
+    getServerProfileSnapshot,
+  )
   const [photos, setPhotos] = useState<InspectionPhoto[]>([])
   const [pendingPath, setPendingPath] = useState<string | null>(null)
   useEffect(() => {
@@ -44,9 +56,6 @@ export default function App({ children }: { children: ReactNode }) {
       router.events.off('routeChangeError', finish)
     }
   }, [router.events])
-  useEffect(() => {
-    setProfile(loadProfile())
-  }, [])
   const nav: Nav = {
     goHome: () => {
       void router.push('/')
@@ -75,7 +84,7 @@ export default function App({ children }: { children: ReactNode }) {
   ) : children
   return (
     <WorkspaceContext.Provider
-      value={{ profile, setProfile, photos, setPhotos }}
+      value={{ profile, setProfile: saveProfile, photos, setPhotos }}
     >
       <NavContext.Provider value={nav}>
         {visiblePath === '/' ? (

@@ -45,6 +45,9 @@
     sans-serif;
   font-size: var(--font-owner);
   line-height: 1.5;
+  /* 한국어는 어절 단위로 줄을 바꾼다. 한 어절이 줄보다 길 때만 쪼갠다. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
   color: var(--text);
   background: var(--background);
   -webkit-font-smoothing: antialiased;
@@ -493,9 +496,11 @@ input {
   display: flex;
   align-items: center;
   gap: calc(var(--space) * 1.25);
+  min-width: 0;
 }
 
 .brand-mark {
+  flex: none;
   display: grid;
   place-items: center;
   width: 40px;
@@ -508,6 +513,7 @@ input {
 .brand-text {
   display: flex;
   flex-direction: column;
+  min-width: 0;
   line-height: 1.2;
 }
 
@@ -517,9 +523,19 @@ input {
   letter-spacing: -0.01em;
 }
 
+/* 매장 이름(최대 40자)이 길어도 위쪽 바가 밀리지 않게 한 줄로 자른다 */
 .brand-text small {
+  overflow: hidden;
   color: var(--text-muted);
   font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (min-width: 1080px) {
+  .brand-text small {
+    max-width: 9em;
+  }
 }
 
 .tabs {
@@ -941,21 +957,28 @@ input {
   font-size: 14px;
 }
 
-/* 좁은 화면: 탭은 둘째 줄에서 가로로 밀어 본다 */
-@media (max-width: 899px) {
-  .start-top {
-    padding-left: 15px;
-  }
-
+/* 로고 + 탭 8개 + 알림·사용자가 한 줄에 다 들어가지 않는 폭(약 1060px 미만):
+   탭은 둘째 줄에서 가로로 밀어 본다 */
+@media (max-width: 1079px) {
   .topbar {
-    grid-template-columns: 1fr auto;
-    padding: calc(var(--space) * 1.5) calc(var(--space) * 2);
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .tabs {
     grid-column: 1 / -1;
     grid-row: 2;
     justify-self: stretch;
+  }
+}
+
+/* 좁은 화면 */
+@media (max-width: 899px) {
+  .start-top {
+    padding-left: 15px;
+  }
+
+  .topbar {
+    padding: calc(var(--space) * 1.5) calc(var(--space) * 2);
   }
 
   .user-chip {
@@ -1116,11 +1139,20 @@ input {
   -webkit-backdrop-filter: var(--glass-blur);
 }
 
-/* 요약 숫자 카드 줄 */
+/* 요약 숫자 카드 줄: 좁은 화면은 한 줄에 하나, 768px부터는 모든 카드를 한 줄에 같은 폭으로
+   (auto-fit으로 두면 태블릿 폭에서 3장이 2+1로 갈라져 한 장만 덩그러니 남는다) */
 .stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: calc(var(--space) * 2);
+}
+
+@media (min-width: 768px) {
+  .stats {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+  }
 }
 
 .stat {
@@ -1178,15 +1210,16 @@ input {
   font-size: 15px;
 }
 
+/* 점은 한 줄에 두고, 카드가 좁으면 점 크기를 줄여 맞춘다 */
 .dot-meter {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
 }
 
 .dot-meter span {
-  width: 14px;
-  height: 14px;
+  flex: 0 1 14px;
+  aspect-ratio: 1;
   border-radius: 50%;
   background: var(--track);
 }
@@ -1238,6 +1271,19 @@ input {
   align-items: flex-start;
   justify-content: space-between;
   gap: calc(var(--space) * 2);
+}
+
+/* 좁은 화면: 오른쪽의 버튼·범례처럼 넓은 것은 다음 줄로 내려 제목 폭을 지킨다.
+   건수 칩처럼 좁은 것(약 70px 이하)은 그대로 제목 옆에 남는다. */
+@media (max-width: 599px) {
+  .card-head {
+    flex-wrap: wrap;
+  }
+
+  .card-head > :first-child {
+    flex: 1 1 calc(100% - 5rem);
+    min-width: 0;
+  }
 }
 
 .card-title {
