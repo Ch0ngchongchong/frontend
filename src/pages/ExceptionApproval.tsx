@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { useSWRConfig } from 'swr'
 import {
   CardHead,
@@ -11,11 +11,12 @@ import {
   approveInspection,
   rejectInspection,
   useExceptionInspections,
+  useExceptionPhotos,
   type Inspection,
 } from '../api/inspections'
 import { useProducts } from '../api/workspace'
 import type { Product } from '../api/products'
-import type { InspectionPhoto } from '../components/InspectionPhotos.ts'
+import { ExceptionPhotoList } from '../components/InspectionPhotos.tsx'
 
 // 예외 건 승인 (사장님) 화면 (PRD 5절 / US-06 / F-06)
 // 사장 승인 대기 → 승인 → 재고 반영 완료 / 사장 승인 대기 → 반려(사유 필수) → 직원 재검수 또는 검수 종료
@@ -44,58 +45,29 @@ function kindsOf(inspection: Inspection) {
   return [...kinds]
 }
 
-function AttachedPhotos({ photos }: { photos: InspectionPhoto[] }) {
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const [edges, setEdges] = useState({ left: false, right: false })
-  useEffect(() => {
-    const element = scrollRef.current
-    if (!element) return
-    const update = () =>
-      setEdges({
-        left: element.scrollLeft > 1,
-        right:
-          element.scrollLeft + element.clientWidth < element.scrollWidth - 1,
-      })
-    update()
-    element.addEventListener('scroll', update, { passive: true })
-    const observer = new ResizeObserver(update)
-    observer.observe(element)
-    if (element.firstElementChild) observer.observe(element.firstElementChild)
-    return () => {
-      element.removeEventListener('scroll', update)
-      observer.disconnect()
-    }
-  }, [])
+// 직원이 입고 확인에서 이 건에 올린 예외 사진
+function AttachedPhotos({ inspectionId }: { inspectionId: number }) {
+  const { data, error } = useExceptionPhotos(inspectionId)
   return (
-    <section
-      className="card approval-attachments"
-      aria-labelledby="attachments-title"
-    >
-      <CardHead
-        id="attachments-title"
-        icon={<Icon name="photo" />}
-        title="입고 확인 첨부 사진"
-        note="이번 세션에서 올린 사진 (임시 보관 중)"
-      />
-      <div
-        className={`review-scroll-wrap${edges.left ? ' fade-left' : ''}${edges.right ? ' fade-right' : ''}`}
-      >
-        <div className="table-scroll approval-photo-scroll" ref={scrollRef}>
-          <div className="approval-photo-list">
-            {photos.map((photo) => (
-              <figure key={photo.id}>
-                <img src={photo.src} alt={`첨부 사진: ${photo.name}`} />
-                <figcaption title={photo.name}>{photo.name}</figcaption>
-              </figure>
-            ))}
-          </div>
-        </div>
-      </div>
+    <section className="exception-photos" aria-labelledby="attachments-title">
+      <h3 id="attachments-title" className="card-note">
+        직원이 올린 예외 사진{data ? ` ${data.length}장` : ''}
+      </h3>
+      {error && (
+        <p className="field-error" role="alert">
+          사진 목록을 불러오지 못했어요: {errorMessage(error)}
+        </p>
+      )}
+      {!data && !error && <p role="status">사진을 불러오고 있어요.</p>}
+      {data?.length === 0 && <p className="muted">올린 사진이 없어요</p>}
+      {data && data.length > 0 && (
+        <ExceptionPhotoList inspectionId={inspectionId} photos={data} />
+      )}
     </section>
   )
 }
 
-function ExceptionApproval({ photos }: { photos: InspectionPhoto[] }) {
+function ExceptionApproval() {
   const { mutate } = useSWRConfig()
   const { data, error: listError } = useExceptionInspections()
   const { data: productData } = useProducts()
@@ -106,7 +78,7 @@ function ExceptionApproval({ photos }: { photos: InspectionPhoto[] }) {
   const [pending, setPending] = useState<'approve' | 'reject' | null>(null)
   const [actionError, setActionError] = useState('')
 
-  // selectedId가 없거나 방금 승인·반려돼 목록에서 빠졌으면 첫 건으로 돌아간다
+  // selectedId가 없거나 방금 승인·반려·확정 취소돼 목록에서 빠졌으면 첫 건으로 돌아간다
   const selected =
     exceptions.find((item) => item.id === selectedId) ?? exceptions[0] ?? null
 
@@ -166,8 +138,6 @@ function ExceptionApproval({ photos }: { photos: InspectionPhoto[] }) {
   return (
     <div className="approval-page">
       <PageHeader title="예외 승인" screen="approval" />
-
-      {photos.length > 0 && <AttachedPhotos photos={photos} />}
 
       {listError && (
         <p className="field-error" role="alert">
@@ -243,6 +213,8 @@ function ExceptionApproval({ photos }: { photos: InspectionPhoto[] }) {
                 {selected.exception_reason ?? '(적힌 사유가 없어요)'}
               </blockquote>
             </figure>
+
+            <AttachedPhotos key={selected.id} inspectionId={selected.id} />
 
             <div className="table-scroll">
               <table className="data-table">
