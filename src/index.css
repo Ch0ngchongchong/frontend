@@ -2728,6 +2728,33 @@ input {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.approval-photo-list a {
+  display: block;
+  border-radius: 12px;
+  color: inherit;
+}
+.approval-photo-list .photo-placeholder {
+  display: grid;
+  place-items: center;
+  width: 160px;
+  height: 120px;
+  padding: 12px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  background: var(--track);
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+}
+.exception-photo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space);
+}
+.exception-photo-actions .card-note {
+  margin: 0;
+}
 
 .review-scroll-wrap {
   position: relative;

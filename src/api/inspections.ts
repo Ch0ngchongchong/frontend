@@ -1,5 +1,5 @@
 import useSWR from 'swr'
-import { request } from './client'
+import { request, requestBlob, STAFF_USER_ID } from './client'
 
 export type InspectionLine = {
   id: number
@@ -117,18 +117,63 @@ export function rejectInspection(id: number, reason: string) {
   })
 }
 
-// 사장 처리 전 직원 확정 취소
-export function cancelConfirmation(id: number) {
-  return request<Inspection>(`/inspections/${id}/cancel-confirmation`, {
+// 직원 확정. 발주와 다른 건(all_match가 false)은 서버가 예외 사유를 필수로 받는다.
+export function confirmInspection(id: number, reason: string | null) {
+  return request<Inspection>(`/inspections/${id}/confirm`, {
     method: 'POST',
+    body: reason === null ? undefined : JSON.stringify({ reason }),
   })
 }
 
-// 반려 건 재검수 시작 (직원)
+// 사장 처리 전 직원 확정 취소 (`사장 승인 대기` → `직원 확인 대기`). 서버가 직원만 허용한다.
+export function cancelConfirmation(id: number) {
+  return request<Inspection>(`/inspections/${id}/cancel-confirmation`, {
+    method: 'POST',
+    userId: STAFF_USER_ID,
+  })
+}
+
+// 반려 건 재검수 시작 (`반려` → `직원 확인 대기`). 서버가 직원만 허용한다.
 export function reinspect(id: number) {
   return request<Inspection>(`/inspections/${id}/reinspect`, {
     method: 'POST',
+    userId: STAFF_USER_ID,
   })
+}
+
+// 예외 사진 (US-04·US-06). 업로드는 `직원 확인 대기`에서만 되고, 목록·원본은 언제든 조회할 수 있다.
+export type ExceptionPhoto = {
+  id: number
+  filename: string
+  content_type: string
+  uploaded_at: string
+}
+
+export const EXCEPTION_PHOTO_TYPES: Record<string, string> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  heic: 'image/heic',
+}
+export const EXCEPTION_PHOTO_MAX_BYTES = 10 * 1024 * 1024
+
+export function useExceptionPhotos(id: number | null) {
+  return useSWR(id === null ? null : ['exception-photos', '1', id], () =>
+    request<ExceptionPhoto[]>(`/inspections/${id}/exception-photos`),
+  )
+}
+
+export function uploadExceptionPhoto(id: number, file: File) {
+  const body = new FormData()
+  body.append('file', file)
+  return request<Omit<ExceptionPhoto, 'uploaded_at'>>(
+    `/inspections/${id}/exception-photos`,
+    { method: 'POST', body },
+  )
+}
+
+export function fetchExceptionPhoto(id: number, photoId: number) {
+  return requestBlob(`/inspections/${id}/exception-photos/${photoId}`)
 }
 
 // 반려 건 검수 종료 (사장님)

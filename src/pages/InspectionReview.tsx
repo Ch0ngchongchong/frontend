@@ -18,6 +18,13 @@ import {
 import { request } from '../api/client'
 import {
   addInspectionLine,
+  cancelConfirmation,
+  confirmInspection,
+  EXCEPTION_PHOTO_MAX_BYTES,
+  EXCEPTION_PHOTO_TYPES,
+  reinspect,
+  uploadExceptionPhoto,
+  useExceptionPhotos,
   useInspection,
   useInspections,
   useInventory,
@@ -28,6 +35,7 @@ import {
 import { useProducts } from '../api/workspace'
 import type { Product } from '../api/products'
 import { checkLine, countFlagged, type ReadField } from '../inspectionChecks'
+import { ExceptionPhotoList } from '../components/InspectionPhotos.tsx'
 
 function errorMessage(error: unknown) {
   return error instanceof Error
@@ -219,23 +227,35 @@ function ReviewDetail({
 }) {
   const { mutate } = useSWRConfig()
   const inventory = useInventory()
+  const photos = useExceptionPhotos(inspection.id)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const photoInputRef = useRef<HTMLInputElement>(null)
   const [scrollEdges, setScrollEdges] = useState({ left: false, right: false })
   const [drafts, setDrafts] = useState<Record<number, LineDraft>>({})
-  const [pending, setPending] = useState<number | 'confirm' | 'add' | null>(
-    null,
-  )
+  const [pending, setPending] = useState<
+    number | 'confirm' | 'add' | 'cancel' | 'reinspect' | 'photo' | null
+  >(null)
   const [adding, setAdding] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState('')
+  // 확정을 취소했거나 반려돼 다시 확정할 때는 지난번 사유에서 이어 쓴다.
+  const [reason, setReason] = useState(inspection.exception_reason ?? '')
+  const [photoMessage, setPhotoMessage] = useState<{
+    text: string
+    error: boolean
+  } | null>(null)
   const [beforeInventory, setBeforeInventory] = useState<
     InventoryItem[] | null
   >(null)
   const ready = inspection.status === '직원 확인 대기'
+  const awaitingOwner = inspection.status === '사장 승인 대기'
+  const rejected = inspection.status === '반려'
   const compared =
-    ready ||
-    inspection.status === '재고 반영 완료' ||
-    inspection.status === '사장 승인 대기'
+    ready || awaitingOwner || rejected || inspection.status === '재고 반영 완료'
+  // 발주와 다른 건은 서버가 예외 사유 없이는 확정하지 않는다.
+  const needsReason = ready && !inspection.all_match
+  const photoCount = photos.data?.length ?? 0
+  const showPhotos = (compared && !inspection.all_match) || photoCount > 0
   const differs = inspection.lines.filter(
     (line) => line.match_status !== '일치' && line.match_status !== '확인 필요',
   ).length
@@ -347,12 +367,19 @@ function ReviewDetail({
     }
   }
 
+  // 확정·확정 취소·재검수는 사장님 승인 목록과 변경 이력도 바꾼다.
+  function refreshOwnerViews() {
+    void mutate(['inspections', '1', '사장 승인 대기'])
+    void mutate(['inspection-history', '1', inspection.id])
+  }
+
   async function confirm() {
     if (
       !ready ||
       inspection.check_count !== 0 ||
       hasUnsaved ||
-      pending !== null
+      pending !== null ||
+      (needsReason && !reason.trim())
     )
       return
     setPending('confirm')
@@ -360,11 +387,12 @@ function ReviewDetail({
     setResult('')
     const before = inventory.data ?? null
     try {
-      const updated = await request<Inspection>(
-        `/inspections/${inspection.id}/confirm`,
-        { method: 'POST' },
+      const updated = await confirmInspection(
+        inspection.id,
+        needsReason ? reason.trim() : null,
       )
       await cacheInspection(updated)
+      refreshOwnerViews()
       setBeforeInventory(before)
       setResult(
         updated.status === '재고 반영 완료'
@@ -380,6 +408,84 @@ function ReviewDetail({
       setError(errorMessage(failure))
     } finally {
       setPending(null)
+    }
+  }
+
+  // 직원 동작: 사장님이 처리하기 전 확정 취소, 반려 건 재검수 시작. 둘 다 `직원 확인 대기`로 돌아간다.
+  async function staffAction(action: 'cancel' | 'reinspect') {
+    if (pending !== null) return
+    if (action === 'cancel' ? !awaitingOwner : !rejected) return
+    setPending(action)
+    setError('')
+    setResult('')
+    try {
+      const updated =
+        action === 'cancel'
+          ? await cancelConfirmation(inspection.id)
+          : await reinspect(inspection.id)
+      await cacheInspection(updated)
+      refreshOwnerViews()
+      setBeforeInventory(null)
+      setResult(
+        action === 'cancel'
+          ? '확정을 취소했어요. 직원 확인 대기로 돌아왔어요. 고친 뒤 다시 확정해 주세요.'
+          : '재검수를 시작했어요. 반려 사유를 확인하고 고친 뒤 다시 확정해 주세요.',
+      )
+    } catch (failure) {
+      setError(errorMessage(failure))
+    } finally {
+      setPending(null)
+    }
+  }
+
+  async function uploadPhotos(files: File[]) {
+    if (!ready || pending !== null || files.length === 0) return
+    const prepared: File[] = []
+    for (const file of files) {
+      const contentType =
+        file.type ||
+        EXCEPTION_PHOTO_TYPES[file.name.split('.').pop()?.toLowerCase() ?? '']
+      if (!Object.values(EXCEPTION_PHOTO_TYPES).includes(contentType)) {
+        setPhotoMessage({
+          text: `${file.name}: JPG, PNG, HEIC 사진만 올릴 수 있어요.`,
+          error: true,
+        })
+        return
+      }
+      if (file.size === 0 || file.size > EXCEPTION_PHOTO_MAX_BYTES) {
+        setPhotoMessage({
+          text: `${file.name}: 10MB 이하의 사진만 올릴 수 있어요.`,
+          error: true,
+        })
+        return
+      }
+      prepared.push(
+        file.type ? file : new File([file], file.name, { type: contentType }),
+      )
+    }
+    setPending('photo')
+    setPhotoMessage({ text: '사진을 올리고 있어요.', error: false })
+    let uploaded = 0
+    try {
+      for (const file of prepared) {
+        await uploadExceptionPhoto(inspection.id, file)
+        uploaded += 1
+      }
+      setPhotoMessage({
+        text: `사진 ${uploaded}장을 이 검수 건에 연결했어요.`,
+        error: false,
+      })
+    } catch (failure) {
+      setPhotoMessage({
+        text: `${uploaded > 0 ? `${uploaded}장은 올렸지만 ` : ''}사진을 올리지 못했어요. ${errorMessage(failure)}`,
+        error: true,
+      })
+    } finally {
+      setPending(null)
+      if (uploaded > 0) {
+        void photos.mutate()
+        void mutate(['inspection-history', '1', inspection.id])
+      }
     }
   }
 
@@ -714,11 +820,23 @@ function ReviewDetail({
         <aside className="card card-form" aria-labelledby="confirm-title">
           <CardHead
             id="confirm-title"
-            icon={<Icon name="check" />}
-            title="확정하기"
-            note="확정하기 전에는 재고가 바뀌지 않아요"
+            icon={<Icon name={rejected ? 'xCircle' : 'check'} />}
+            title={
+              awaitingOwner
+                ? '사장님 승인 대기'
+                : rejected
+                  ? '반려된 검수'
+                  : '확정하기'
+            }
+            note={
+              awaitingOwner
+                ? '사장님이 처리하기 전에는 확정을 취소할 수 있어요'
+                : rejected
+                  ? '재검수를 시작하면 다시 고친 뒤 확정할 수 있어요'
+                  : '확정하기 전에는 재고가 바뀌지 않아요'
+            }
           />
-          {compared && (
+          {ready && (
             <>
               <div className="remaining">
                 <strong>{inspection.check_count}</strong>
@@ -729,7 +847,7 @@ function ReviewDetail({
                   ? '발주와 모두 일치해요. 확정하면 재고에 반영돼요.'
                   : '발주와 다른 내용이 있어요. 확정하면 사장님 승인 대기로 넘어가고 재고는 유지돼요.'}
               </p>
-              {ready && flaggedTotal > 0 && (
+              {flaggedTotal > 0 && (
                 <p className="card-note">
                   강조한 칸 {flaggedTotal}개(불확실한 값 {flagged.uncertain}개,
                   규칙 검증 실패 {flagged.ruleFail}개)를 명세서 원본과 비교한 뒤
@@ -737,6 +855,47 @@ function ReviewDetail({
                 </p>
               )}
             </>
+          )}
+          {needsReason && (
+            <div className="field">
+              <label htmlFor="exception-reason">
+                예외 사유 <span className="required">필수</span>
+              </label>
+              <textarea
+                id="exception-reason"
+                rows={3}
+                placeholder="예: 우유 2개 파손, 공급처와 통화해 단가 변경 확인"
+                value={reason}
+                disabled={pending !== null}
+                aria-describedby="exception-reason-help"
+                onChange={(event) => setReason(event.target.value)}
+              />
+              <small id="exception-reason-help" className="muted">
+                사장님 승인 화면에 그대로 보여요. 파손 등은 아래 예외 사진도
+                올려 주세요.
+              </small>
+            </div>
+          )}
+          {awaitingOwner && (
+            <>
+              <figure className="staff-reason">
+                <figcaption>확정할 때 적은 예외 사유</figcaption>
+                <blockquote>
+                  {inspection.exception_reason ?? '(적힌 사유가 없어요)'}
+                </blockquote>
+              </figure>
+              <p className="card-note">
+                확정을 취소하면 직원 확인 대기로 돌아가요. 재고는 바뀌지 않아요.
+              </p>
+            </>
+          )}
+          {rejected && (
+            <figure className="staff-reason">
+              <figcaption>사장님이 적은 반려 사유</figcaption>
+              <blockquote>
+                {inspection.reject_reason ?? '(적힌 사유가 없어요)'}
+              </blockquote>
+            </figure>
           )}
           {hasUnsaved && (
             <p className="card-note">
@@ -751,27 +910,118 @@ function ReviewDetail({
             </p>
           )}
           {result && <p role="status">{result}</p>}
-          <button
-            type="button"
-            className="button-primary"
-            disabled={
-              !ready ||
-              inspection.check_count !== 0 ||
-              hasUnsaved ||
-              pending !== null
-            }
-            onClick={() => void confirm()}
-          >
-            {pending === 'confirm'
-              ? '확정 중…'
-              : !ready
-                ? inspection.status
-                : inspection.check_count > 0
-                  ? `확인할 칸 ${inspection.check_count}개 남음`
-                  : '확인 후 확정'}
-          </button>
+          {awaitingOwner ? (
+            <button
+              type="button"
+              className="button-secondary"
+              disabled={pending !== null}
+              onClick={() => void staffAction('cancel')}
+            >
+              {pending === 'cancel' ? '취소 중…' : '확정 취소'}
+            </button>
+          ) : rejected ? (
+            <button
+              type="button"
+              className="button-primary"
+              disabled={pending !== null}
+              onClick={() => void staffAction('reinspect')}
+            >
+              {pending === 'reinspect' ? '시작하는 중…' : '재검수 시작'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="button-primary"
+              disabled={
+                !ready ||
+                inspection.check_count !== 0 ||
+                hasUnsaved ||
+                pending !== null ||
+                (needsReason && !reason.trim())
+              }
+              onClick={() => void confirm()}
+            >
+              {pending === 'confirm'
+                ? '확정 중…'
+                : !ready
+                  ? inspection.status
+                  : inspection.check_count > 0
+                    ? `확인할 칸 ${inspection.check_count}개 남음`
+                    : needsReason && !reason.trim()
+                      ? '예외 사유를 적어 주세요'
+                      : '확인 후 확정'}
+            </button>
+          )}
         </aside>
       </div>
+      {showPhotos && (
+        <section className="card" aria-labelledby="exception-photos-title">
+          <CardHead
+            id="exception-photos-title"
+            icon={<Icon name="photo" />}
+            title="예외 사진"
+            note={
+              ready
+                ? '파손·수량 차이 같은 예외 상황을 찍어 올리면 사장님 승인 화면에 함께 보여요'
+                : '사진은 직원 확인 대기일 때만 올릴 수 있어요'
+            }
+            right={photos.data && <span className="chip">{photoCount}장</span>}
+          />
+          {ready && (
+            <div className="exception-photo-actions">
+              <input
+                ref={photoInputRef}
+                type="file"
+                className="visually-hidden"
+                tabIndex={-1}
+                aria-hidden="true"
+                multiple
+                accept=".jpg,.jpeg,.png,.heic,image/jpeg,image/png,image/heic"
+                onChange={(event) => {
+                  const files = Array.from(event.target.files ?? [])
+                  event.target.value = ''
+                  void uploadPhotos(files)
+                }}
+              />
+              <button
+                type="button"
+                className="button-secondary"
+                disabled={pending !== null}
+                onClick={() => photoInputRef.current?.click()}
+              >
+                <Icon name="camera" size={18} />{' '}
+                {pending === 'photo' ? '올리는 중…' : '사진 추가'}
+              </button>
+              <p className="card-note">JPG · PNG · HEIC, 한 장에 최대 10MB</p>
+            </div>
+          )}
+          {photoMessage && (
+            <p
+              className={photoMessage.error ? 'field-error' : undefined}
+              role={photoMessage.error ? 'alert' : 'status'}
+            >
+              {photoMessage.text}
+            </p>
+          )}
+          {photos.error && (
+            <p className="field-error" role="alert">
+              사진 목록을 불러오지 못했어요: {errorMessage(photos.error)}{' '}
+              <button type="button" onClick={() => void photos.mutate()}>
+                다시 시도
+              </button>
+            </p>
+          )}
+          {photos.data?.length === 0 && (
+            <p className="muted">아직 올린 사진이 없어요</p>
+          )}
+          {photos.data && photos.data.length > 0 && (
+            <ExceptionPhotoList
+              inspectionId={inspection.id}
+              photos={photos.data}
+            />
+          )}
+        </section>
+      )}
       <section className="card" aria-labelledby="inventory-title">
         <CardHead
           id="inventory-title"

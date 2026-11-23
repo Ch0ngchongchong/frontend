@@ -4,8 +4,6 @@ import {
   useEffect,
   useState,
   useSyncExternalStore,
-  type Dispatch,
-  type SetStateAction,
   type ReactNode,
 } from 'react'
 import { useRouter } from 'next/router'
@@ -20,13 +18,10 @@ import {
   subscribeProfile,
   type Profile,
 } from './profile'
-import type { InspectionPhoto } from './components/InspectionPhotos'
 
 type Workspace = {
   profile: Profile
   setProfile: (profile: Profile) => void
-  photos: InspectionPhoto[]
-  setPhotos: Dispatch<SetStateAction<InspectionPhoto[]>>
 }
 const WorkspaceContext = createContext<Workspace | null>(null)
 export function useWorkspace() {
@@ -43,7 +38,6 @@ export default function App({ children }: { children: ReactNode }) {
     getProfileSnapshot,
     getServerProfileSnapshot,
   )
-  const [photos, setPhotos] = useState<InspectionPhoto[]>([])
   const [pendingPath, setPendingPath] = useState<string | null>(null)
   useEffect(() => {
     const start = (url: string) => setPendingPath(url.split('?')[0])
@@ -85,7 +79,7 @@ export default function App({ children }: { children: ReactNode }) {
   ) : children
   return (
     <WorkspaceContext.Provider
-      value={{ profile, setProfile: saveProfile, photos, setPhotos }}
+      value={{ profile, setProfile: saveProfile }}
     >
       <NavContext.Provider value={nav}>
         {visiblePath === '/' ? (
