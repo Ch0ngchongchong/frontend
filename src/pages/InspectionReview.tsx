@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/router'
 import { useSWRConfig } from 'swr'
 import {
@@ -6,14 +6,17 @@ import {
   StatusSummary,
   Icon,
   PageHeader,
+  Pill,
   StatusPill,
 } from '../components/ui.tsx'
 import { request } from '../api/client'
 import {
+  addInspectionLine,
   useInspection,
   useInspections,
   useInventory,
   type Inspection,
+  type InspectionLineInput,
   type InventoryItem,
 } from '../api/inspections'
 import { useProducts } from '../api/workspace'
@@ -26,6 +29,166 @@ function errorMessage(error: unknown) {
 }
 
 type LineDraft = { product: string; quantity: string }
+
+// 판독 결과에 없는 줄을 직원이 명세서를 보고 추가한다 (US-04 줄 누락).
+// 열 때마다 새로 마운트되어 입력값이 비워진다.
+function AddLineForm({
+  products,
+  catalogAvailable,
+  busy,
+  onAdd,
+  onClose,
+}: {
+  products: Product[]
+  catalogAvailable: boolean
+  busy: boolean
+  onAdd: (input: InspectionLineInput) => Promise<void>
+  onClose: () => void
+}) {
+  const [name, setName] = useState('')
+  const [product, setProduct] = useState('')
+  const [quantity, setQuantity] = useState('')
+  const [unit, setUnit] = useState('')
+  const [unitPrice, setUnitPrice] = useState('')
+  const [error, setError] = useState('')
+
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    const parsedQuantity = quantity.trim() === '' ? null : Number(quantity)
+    const parsedPrice = unitPrice.trim() === '' ? null : Number(unitPrice)
+    if (!name.trim()) {
+      setError('명세서에 적힌 품목명을 입력해 주세요.')
+      return
+    }
+    if (
+      parsedQuantity !== null &&
+      (!Number.isSafeInteger(parsedQuantity) || parsedQuantity < 1)
+    ) {
+      setError('수량은 1 이상의 정수로 입력하거나 비워 주세요.')
+      return
+    }
+    if (
+      parsedPrice !== null &&
+      (!Number.isSafeInteger(parsedPrice) || parsedPrice < 0)
+    ) {
+      setError('단가는 0 이상의 정수(원)로 입력하거나 비워 주세요.')
+      return
+    }
+    setError('')
+    try {
+      await onAdd({
+        name: name.trim(),
+        product_id: product === '' ? null : Number(product),
+        quantity: parsedQuantity,
+        unit: unit.trim() || null,
+        unit_price: parsedPrice,
+      })
+      onClose()
+    } catch (failure) {
+      setError(`줄을 추가하지 못했어요. ${errorMessage(failure)}`)
+    }
+  }
+
+  return (
+    <form
+      className="product-form line-add-form"
+      aria-labelledby="line-add-title"
+      onSubmit={submit}
+    >
+      <div>
+        <h3 id="line-add-title">판독에 없는 줄 추가</h3>
+        <p className="card-note">
+          명세서에 적힌 그대로 입력해 주세요. 추가한 줄은 변경 이력에 직원이
+          추가한 줄로 남아요.
+        </p>
+      </div>
+      <div className="field-grid">
+        <div className="field">
+          <label htmlFor="line-add-name">
+            명세서 품목명 <span className="required">필수</span>
+          </label>
+          <input
+            id="line-add-name"
+            required
+            autoFocus
+            value={name}
+            disabled={busy}
+            onChange={(event) => setName(event.target.value)}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="line-add-product">우리 상품</label>
+          <select
+            id="line-add-product"
+            value={product}
+            disabled={busy || !catalogAvailable}
+            onChange={(event) => setProduct(event.target.value)}
+          >
+            <option value="">상품 선택 안 함</option>
+            {products.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.product_code} · {item.name ?? '이름 없음'}
+                {item.spec ? ` · ${item.spec}` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="line-add-quantity">수량</label>
+          <input
+            id="line-add-quantity"
+            type="number"
+            min="1"
+            step="1"
+            value={quantity}
+            disabled={busy}
+            onChange={(event) => setQuantity(event.target.value)}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="line-add-unit">단위</label>
+          <input
+            id="line-add-unit"
+            placeholder="예: 박스"
+            value={unit}
+            disabled={busy}
+            onChange={(event) => setUnit(event.target.value)}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="line-add-price">단가 (원)</label>
+          <input
+            id="line-add-price"
+            type="number"
+            min="0"
+            step="1"
+            value={unitPrice}
+            disabled={busy}
+            onChange={(event) => setUnitPrice(event.target.value)}
+          />
+        </div>
+      </div>
+      {error && (
+        <p className="field-error" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="row-actions">
+        <button
+          type="button"
+          className="button-secondary"
+          disabled={busy}
+          onClick={onClose}
+        >
+          취소
+        </button>
+        <button type="submit" className="button-primary" disabled={busy}>
+          {busy ? '추가 중…' : '줄 추가'}
+        </button>
+      </div>
+    </form>
+  )
+}
 
 function ReviewDetail({
   inspection,
@@ -41,7 +204,10 @@ function ReviewDetail({
   const scrollRef = useRef<HTMLDivElement>(null)
   const [scrollEdges, setScrollEdges] = useState({ left: false, right: false })
   const [drafts, setDrafts] = useState<Record<number, LineDraft>>({})
-  const [pending, setPending] = useState<number | 'confirm' | null>(null)
+  const [pending, setPending] = useState<number | 'confirm' | 'add' | null>(
+    null,
+  )
+  const [adding, setAdding] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState('')
   const [beforeInventory, setBeforeInventory] = useState<
@@ -74,7 +240,8 @@ function ReviewDetail({
       draft.quantity !== (line.quantity === null ? '' : String(line.quantity))
     )
   }
-  const hasUnsaved = inspection.lines.some(isDirty)
+  // 추가하던 줄도 저장 전 변경으로 보고 확정을 막는다.
+  const hasUnsaved = inspection.lines.some(isDirty) || adding
 
   useEffect(() => {
     const element = scrollRef.current
@@ -142,6 +309,18 @@ function ReviewDetail({
       })
     } catch (failure) {
       setError(errorMessage(failure))
+    } finally {
+      setPending(null)
+    }
+  }
+
+  // 실패는 폼 안에 보여 주도록 그대로 던진다.
+  async function addLine(input: InspectionLineInput) {
+    setPending('add')
+    setError('')
+    setResult('')
+    try {
+      await cacheInspection(await addInspectionLine(inspection.id, input))
     } finally {
       setPending(null)
     }
@@ -282,9 +461,15 @@ function ReviewDetail({
                               ? '—'
                               : `${line.read.amount.toLocaleString('ko-KR')}원`}
                           </div>
-                          <small className="muted">
-                            읽은 값은 수정되지 않아요
-                          </small>
+                          {line.source === 'staff' ? (
+                            <Pill tone="accent" icon="plus">
+                              직원이 추가한 줄
+                            </Pill>
+                          ) : (
+                            <small className="muted">
+                              읽은 값은 수정되지 않아요
+                            </small>
+                          )}
                         </td>
                         <td
                           className={
@@ -422,6 +607,25 @@ function ReviewDetail({
               </ul>
             </div>
           )}
+          {ready &&
+            (adding ? (
+              <AddLineForm
+                products={products}
+                catalogAvailable={catalogAvailable}
+                busy={pending === 'add'}
+                onAdd={addLine}
+                onClose={() => setAdding(false)}
+              />
+            ) : (
+              <button
+                type="button"
+                className="button-text"
+                disabled={pending !== null}
+                onClick={() => setAdding(true)}
+              >
+                + 판독에 없는 줄 추가
+              </button>
+            ))}
         </section>
         <aside className="card card-form" aria-labelledby="confirm-title">
           <CardHead
@@ -444,7 +648,11 @@ function ReviewDetail({
             </>
           )}
           {hasUnsaved && (
-            <p className="card-note">변경한 줄을 먼저 저장해 주세요.</p>
+            <p className="card-note">
+              {adding
+                ? '추가하던 줄을 먼저 추가하거나 취소해 주세요.'
+                : '변경한 줄을 먼저 저장해 주세요.'}
+            </p>
           )}
           {error && (
             <p className="field-error" role="alert">

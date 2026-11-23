@@ -696,7 +696,13 @@ input {
   background: transparent;
   color: var(--text);
   text-align: left;
+  text-decoration: none;
   cursor: pointer;
+}
+.notification-empty {
+  padding: 24px 4px;
+  color: var(--text-muted);
+  font-size: 15px;
 }
 .notification-item > span:nth-child(2) {
   flex: 1;
@@ -735,6 +741,128 @@ input {
 .notification-read-all:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* 다시 확인받는 창 (발주 한도 초과 승인, US-01 R7) */
+.confirm-dialog {
+  width: min(480px, calc(100% - 32px));
+  max-height: min(650px, calc(100% - 32px));
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  color: var(--text);
+  box-shadow: 0 20px 70px rgba(20, 22, 31, 0.2);
+}
+.confirm-dialog::backdrop {
+  background: rgba(20, 22, 31, 0.4);
+}
+.confirm-dialog-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space);
+  color: var(--danger-strong);
+  font-size: 22px;
+}
+.confirm-dialog > p {
+  margin-top: var(--space);
+  color: var(--text-muted);
+}
+.limit-review-list {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space) * 1.5);
+  margin: calc(var(--space) * 2.5) 0;
+  padding: calc(var(--space) * 2) 0;
+  border-block: 1px solid var(--line);
+  list-style: none;
+}
+.limit-review-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.confirm-dialog .row-actions {
+  flex-wrap: wrap;
+  gap: var(--space);
+}
+
+/* 판독 완료 알림: 화면 아래 (US-03) */
+.reading-toast-region {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  left: 16px;
+  z-index: 30;
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+.reading-toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(480px, 100%);
+  padding: 12px 8px 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  color: var(--text);
+  background: var(--background);
+  box-shadow: 0 20px 70px rgba(20, 22, 31, 0.2);
+  pointer-events: auto;
+}
+.reading-toast-icon {
+  display: grid;
+  color: var(--done);
+}
+.reading-toast-failed .reading-toast-icon {
+  color: var(--danger);
+}
+.reading-toast-text {
+  flex: 1;
+  min-width: 0;
+}
+.reading-toast-text strong,
+.reading-toast-text small {
+  display: block;
+}
+.reading-toast-text strong {
+  font-size: 15px;
+}
+.reading-toast-text small {
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.reading-toast .button-small {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+.reading-toast-close {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+}
+@media (max-width: 599px) {
+  .reading-toast {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .reading-toast .button-small {
+    grid-row: 2;
+    grid-column: 2 / 4;
+    justify-self: start;
+  }
+  .reading-toast-close {
+    grid-row: 1;
+    grid-column: 3;
+  }
 }
 .mypage-card {
   max-width: 680px;
@@ -2202,6 +2330,33 @@ input {
   color: var(--danger-strong);
   font-size: 15px;
   font-weight: 700;
+}
+
+/* 입고 확인: 판독에 없는 줄 추가 (US-04) */
+.line-add-form {
+  margin-top: calc(var(--space) * 2);
+  padding-top: calc(var(--space) * 2.5);
+  border-top: 1px solid var(--line);
+}
+.line-add-form h3 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+.line-add-form select {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--button-owner);
+  padding: 0 calc(var(--space) * 2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  color: var(--text);
+  background: var(--surface-strong);
+  font: inherit;
+}
+.line-add-form select:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-ring);
 }
 
 /* 세로로 쌓은 카드 묶음 */

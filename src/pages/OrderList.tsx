@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSWRConfig } from 'swr'
 import {
   CardHead,
@@ -15,7 +15,11 @@ import {
   useProducts,
   type PurchaseOrder,
 } from '../api/workspace'
-import OrderLimits from '../components/OrderLimits.tsx'
+import OrderLimits, {
+  findOverLimits,
+  type OrderLimit,
+  type OverLimit,
+} from '../components/OrderLimits.tsx'
 
 // 상태별로 사장님이 다음에 할 수 있는 일 (US-01·US-02). 취소는 '발주 초안'에서만
 const NEXT_ACTION: Record<string, string | undefined> = {
@@ -24,9 +28,16 @@ const NEXT_ACTION: Record<string, string | undefined> = {
 }
 
 function OrderList() {
-  const [limits, setLimits] = useState<
-    { product: string; limit: number; unit: string }[]
-  >([])
+  const [limits, setLimits] = useState<OrderLimit[]>([])
+  // 한도를 넘은 발주 초안을 승인하려 할 때 다시 확인받는 내용 (US-01 R7)
+  const [limitReview, setLimitReview] = useState<{
+    orderId: number
+    items: OverLimit[]
+  } | null>(null)
+  const limitDialogRef = useRef<HTMLDialogElement>(null)
+  useEffect(() => {
+    if (limitReview) limitDialogRef.current?.showModal()
+  }, [limitReview])
   const { mutate } = useSWRConfig()
   const { data: orderData, error: orderError } = useOrders()
   const { data: productData, error: productError } = useProducts()
@@ -51,6 +62,16 @@ function OrderList() {
 
   const [lines, setLines] = useState([{ id: 0, productId: '', quantity: '' }])
   const [nextLineId, setNextLineId] = useState(1)
+  const draftOverLimits = findOverLimits(
+    lines.flatMap((line) => {
+      const quantity = Number(line.quantity)
+      return line.productId && Number.isFinite(quantity) && quantity > 0
+        ? [{ product_id: Number(line.productId), quantity }]
+        : []
+    }),
+    products,
+    limits,
+  )
 
   function updateLine(id: number, values: Partial<(typeof lines)[number]>) {
     setLines((current) =>
@@ -142,6 +163,18 @@ function OrderList() {
       setPending(null)
     }
   }
+  // 한도를 넘은 상품이 있으면 바로 승인하지 않고 경고 창에서 다시 확인받는다.
+  function requestApprove(order: PurchaseOrder) {
+    const items = findOverLimits(order.lines, products, limits)
+    if (items.length === 0) {
+      void runAction(order.id, 'approve')
+      return
+    }
+    setActionError(null)
+    setSuccess(null)
+    setLimitReview({ orderId: order.id, items })
+  }
+
   const count = (status: string) =>
     loading || (!orderData && error)
       ? '—'
@@ -247,12 +280,9 @@ function OrderList() {
                               className="button-small"
                               disabled={pending !== null}
                               onClick={() =>
-                                void runAction(
-                                  order.id,
-                                  order.status === '발주 초안'
-                                    ? 'approve'
-                                    : 'mark-delivered',
-                                )
+                                order.status === '발주 초안'
+                                  ? requestApprove(order)
+                                  : void runAction(order.id, 'mark-delivered')
                               }
                             >
                               {next}
@@ -350,13 +380,14 @@ function OrderList() {
               const product = products.find(
                 (item) => item.id === Number(line.productId),
               )
-              const limit = limits.find(
-                (item) =>
-                  item.product === product?.name &&
-                  item.unit === product?.base_unit,
-              )
-              const overLimit =
-                limit !== undefined && Number(line.quantity) > limit.limit
+              // 수량을 넣은 줄만 경고한다. 같은 상품 줄은 합계로 비교한다.
+              const over =
+                Number(line.quantity) > 0
+                  ? draftOverLimits.find(
+                      (item) => item.productId === Number(line.productId),
+                    )
+                  : undefined
+              const overLimit = over !== undefined
               return (
                 <div key={line.id}>
                   <div className="order-line">
@@ -409,10 +440,14 @@ function OrderList() {
                       −
                     </button>
                   </div>
-                  {overLimit && (
+                  {over && (
                     <p className="field-warning">
-                      <Icon name="alert" size={16} /> 발주 한도 {limit.limit}
-                      {limit.unit}를 넘었어요. 다시 확인해 주세요.
+                      <Icon name="alert" size={16} /> 발주 한도{' '}
+                      {over.limit.limit}
+                      {over.limit.unit}를 넘었어요
+                      {over.quantity !== Number(line.quantity) &&
+                        ` (같은 상품 합계 ${over.quantity}${over.limit.unit})`}
+                      . 다시 확인해 주세요.
                     </p>
                   )}
                 </div>
@@ -445,6 +480,64 @@ function OrderList() {
         </section>
       </div>
       <OrderLimits onChange={setLimits} />
+      {limitReview && (
+        <dialog
+          ref={limitDialogRef}
+          className="confirm-dialog"
+          aria-labelledby="limit-review-title"
+          aria-describedby="limit-review-note"
+          onClose={() => setLimitReview(null)}
+          onClick={(event) => {
+            if (event.target === event.currentTarget)
+              event.currentTarget.close()
+          }}
+        >
+          <h2 id="limit-review-title" className="confirm-dialog-title">
+            <Icon name="alert" size={22} />
+            발주 한도를 넘은 상품이 있어요
+          </h2>
+          <p id="limit-review-note">
+            발주 #{limitReview.orderId}을 승인하기 전에 수량을 다시 확인해
+            주세요.
+          </p>
+          <ul className="limit-review-list">
+            {limitReview.items.map((item) => (
+              <li key={item.productId}>
+                <strong>
+                  {item.product?.name ?? `상품 #${item.productId}`}
+                </strong>
+                <span className="field-warning">
+                  발주 {item.quantity}
+                  {item.limit.unit} · 한도 {item.limit.limit}
+                  {item.limit.unit} · {item.quantity - item.limit.limit}
+                  {item.limit.unit} 초과
+                </span>
+              </li>
+            ))}
+          </ul>
+          <div className="row-actions">
+            <button
+              type="button"
+              className="button-secondary"
+              onClick={() => limitDialogRef.current?.close()}
+            >
+              돌아가기
+            </button>
+            <button
+              type="button"
+              className="button-primary"
+              disabled={pending !== null}
+              onClick={() => {
+                const { orderId } = limitReview
+                limitDialogRef.current?.close()
+                void runAction(orderId, 'approve')
+              }}
+            >
+              확인했어요, 승인
+            </button>
+          </div>
+        </dialog>
+      )}
     </div>
   )
 }
