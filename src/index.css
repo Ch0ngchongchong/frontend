@@ -3021,6 +3021,21 @@ input {
   margin-top: 4px;
 }
 
+/* 금액 한도 초과 (R7): 금액이 길어 두 줄로 넘어가도 아이콘은 첫 줄에 둔다 */
+.amount-limit-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space);
+}
+.amount-over-limit {
+  align-items: flex-start;
+  margin: 0;
+}
+.amount-over-limit svg {
+  flex: none;
+  margin-top: 3px;
+}
+
 .staff-reason {
   margin: 0;
   padding: 20px 22px;

@@ -42,6 +42,11 @@ export type Inspection = {
   missing_order_lines: { product_id: number; order_quantity: number }[]
   check_count: number
   all_match: boolean
+  // 지금 값으로 확정하면 반영될 금액(원, 기준 단위 수량 × 단가의 합)
+  final_amount?: number
+  // final_amount가 발주의 금액 한도(amount_alert_threshold)를 넘으면 true → 예외 건 (R7).
+  // 이 필드를 아직 보내지 않는 서버도 있어 선택으로 둔다
+  amount_over_limit?: boolean
 }
 export type InventoryItem = {
   product_id: number
