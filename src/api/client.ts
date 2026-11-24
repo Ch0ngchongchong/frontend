@@ -12,13 +12,27 @@ async function send(path: string, init?: RequestInit) {
   return fetch(`/api${path}`, { ...init, headers, cache: 'no-store' })
 }
 
+// 오류 응답 형식 {"error": {"code", "message"}}의 code를 함께 넘겨 화면이 원인별로 처리하게 한다.
+export class RequestError extends Error {
+  status: number
+  code: string | undefined
+  constructor(message: string, status: number, code?: string) {
+    super(message)
+    this.name = 'RequestError'
+    this.status = status
+    this.code = code
+  }
+}
+
 async function failure(response: Response) {
   const body = await response.json().catch(() => null)
-  return new Error(
+  return new RequestError(
     body?.error?.message ??
       (typeof body?.detail === 'string'
         ? body.detail
         : `요청을 처리하지 못했어요 (${response.status})`),
+    response.status,
+    typeof body?.error?.code === 'string' ? body.error.code : undefined,
   )
 }
 
