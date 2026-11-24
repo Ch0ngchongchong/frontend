@@ -1338,6 +1338,58 @@ input {
   font-size: 15px;
 }
 
+.stat-sub.is-warning {
+  color: var(--warning-text);
+  font-weight: 700;
+}
+
+/* 판독 정확도: 칸 이름 | 막대 | 비율, 아래 줄에 줄 수 */
+.accuracy-fields {
+  display: grid;
+  gap: calc(var(--space) * 2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.accuracy-field {
+  display: grid;
+  grid-template-columns: 4.5em minmax(0, 1fr) 4ch;
+  align-items: center;
+  column-gap: calc(var(--space) * 1.5);
+  row-gap: 2px;
+}
+
+.accuracy-field-label {
+  font-weight: 700;
+}
+
+.accuracy-field-value {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.accuracy-field-sub {
+  grid-column: 2 / -1;
+  color: var(--text-muted);
+  font-size: 15px;
+}
+
+.accuracy-field.is-unmeasured {
+  padding-top: calc(var(--space) * 1.5);
+  border-top: 1px solid var(--line);
+}
+
+.accuracy-field.is-unmeasured .accuracy-field-label {
+  color: var(--text-muted);
+}
+
+.accuracy-field.is-unmeasured .accuracy-field-sub {
+  grid-column: 2 / -1;
+  grid-row: 1;
+}
+
 /* 점은 한 줄에 두고, 카드가 좁으면 점 크기를 줄여 맞춘다 */
 .dot-meter {
   display: flex;

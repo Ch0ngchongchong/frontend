@@ -181,19 +181,27 @@ export function closeInspection(id: number) {
   return request<Inspection>(`/inspections/${id}/close`, { method: 'POST' })
 }
 
-// 변경 이력 (US-07)
+// 변경 이력 (US-07). 응답은 `{ inspection_id, changes, reading_logs }`이고 화면은 changes만 쓴다
+// (판독 로그는 아래 `/reading-logs`로 따로 받는다).
+// - action: 무슨 일인지 (`판독`, `줄 수정`, `확정`, `확정 취소`, `재고 반영` 등)
+// - field: 바뀐 곳 (`status`, `line 3`, `line 3 quantity`, `inventory P-001`, `exception_reason` 등).
+//   예전 이력은 null이고 action에 예전 kind가 들어 있다
+// - old_value·new_value: 문자열. 숫자·객체는 JSON 문자열로 온다
 export type HistoryEntryRaw = {
   id: number
   changed_by: number | null
   changed_at: string
-  kind: string
-  old_value: Record<string, unknown> | null
-  new_value: Record<string, unknown> | null
+  action: string
+  field: string | null
+  old_value: string | null
+  new_value: string | null
 }
 
 export function useInspectionHistory(id: number | null) {
   return useSWR(id === null ? null : ['inspection-history', '1', id], () =>
-    request<HistoryEntryRaw[]>(`/inspections/${id}/history`),
+    request<{ changes: HistoryEntryRaw[] }>(`/inspections/${id}/history`).then(
+      (data) => data.changes,
+    ),
   )
 }
 
