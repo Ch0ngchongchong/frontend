@@ -1,5 +1,6 @@
 import useSWR from 'swr'
-import { request, requestBlob, STAFF_USER_ID } from './client'
+import { request, requestBlob } from './client'
+import { userKey } from '../session'
 
 export type InspectionLine = {
   id: number
@@ -52,7 +53,7 @@ export type InventoryItem = {
 
 export function useInspections() {
   return useSWR(
-    ['inspections', '1'],
+    ['inspections', userKey()],
     () => request<Inspection[]>('/inspections'),
     {
       revalidateOnMount: true,
@@ -64,7 +65,7 @@ export function useInspections() {
 
 export function useInspection(id: number | null) {
   return useSWR(
-    id === null ? null : ['inspection', '1', id],
+    id === null ? null : ['inspection', userKey(), id],
     () => request<Inspection>(`/inspections/${id}`),
     {
       revalidateOnMount: true,
@@ -75,7 +76,7 @@ export function useInspection(id: number | null) {
 
 export function useInventory() {
   return useSWR(
-    ['inventory', '1'],
+    ['inventory', userKey()],
     () => request<InventoryItem[]>('/inventory'),
     { revalidateOnMount: true },
   )
@@ -100,7 +101,7 @@ export function addInspectionLine(id: number, input: InspectionLineInput) {
 
 // 예외 건 목록 (US-06). 새 엔드포인트가 아니라 기존 목록 조회를 상태로 거른다.
 export function useExceptionInspections() {
-  return useSWR(['inspections', '1', '사장 승인 대기'], () =>
+  return useSWR(['inspections', userKey(), '사장 승인 대기'], () =>
     request<Inspection[]>('/inspections?status=사장 승인 대기'),
   )
 }
@@ -125,19 +126,17 @@ export function confirmInspection(id: number, reason: string | null) {
   })
 }
 
-// 사장 처리 전 직원 확정 취소 (`사장 승인 대기` → `직원 확인 대기`). 서버가 직원만 허용한다.
+// 사장 처리 전 직원 확정 취소 (`사장 승인 대기` → `직원 확인 대기`). 서버가 직원 계정만 허용한다.
 export function cancelConfirmation(id: number) {
   return request<Inspection>(`/inspections/${id}/cancel-confirmation`, {
     method: 'POST',
-    userId: STAFF_USER_ID,
   })
 }
 
-// 반려 건 재검수 시작 (`반려` → `직원 확인 대기`). 서버가 직원만 허용한다.
+// 반려 건 재검수 시작 (`반려` → `직원 확인 대기`). 서버가 직원 계정만 허용한다.
 export function reinspect(id: number) {
   return request<Inspection>(`/inspections/${id}/reinspect`, {
     method: 'POST',
-    userId: STAFF_USER_ID,
   })
 }
 
@@ -158,7 +157,7 @@ export const EXCEPTION_PHOTO_TYPES: Record<string, string> = {
 export const EXCEPTION_PHOTO_MAX_BYTES = 10 * 1024 * 1024
 
 export function useExceptionPhotos(id: number | null) {
-  return useSWR(id === null ? null : ['exception-photos', '1', id], () =>
+  return useSWR(id === null ? null : ['exception-photos', userKey(), id], () =>
     request<ExceptionPhoto[]>(`/inspections/${id}/exception-photos`),
   )
 }
@@ -198,10 +197,12 @@ export type HistoryEntryRaw = {
 }
 
 export function useInspectionHistory(id: number | null) {
-  return useSWR(id === null ? null : ['inspection-history', '1', id], () =>
-    request<{ changes: HistoryEntryRaw[] }>(`/inspections/${id}/history`).then(
-      (data) => data.changes,
-    ),
+  return useSWR(
+    id === null ? null : ['inspection-history', userKey(), id],
+    () =>
+      request<{ changes: HistoryEntryRaw[] }>(
+        `/inspections/${id}/history`,
+      ).then((data) => data.changes),
   )
 }
 
@@ -217,7 +218,7 @@ export type ReadingLogRaw = {
 }
 
 export function useReadingLogs(id: number | null) {
-  return useSWR(id === null ? null : ['reading-logs', '1', id], () =>
+  return useSWR(id === null ? null : ['reading-logs', userKey(), id], () =>
     request<ReadingLogRaw[]>(`/inspections/${id}/reading-logs`),
   )
 }

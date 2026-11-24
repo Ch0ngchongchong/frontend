@@ -1,17 +1,15 @@
-// 로그인 구현 전 임시 사용자 ID. 서버는 1을 사장님, 2를 같은 매장 직원으로 둔다.
-// 대부분의 요청은 사장님(1)으로 보내고, 서버가 직원만 허용하는 동작(확정 취소·재검수)만 2로 보낸다.
-export const OWNER_USER_ID = '1'
-export const STAFF_USER_ID = '2'
+import { currentUserId } from '../session'
 
-type RequestOptions = RequestInit & { userId?: string }
-
-async function send(path: string, init?: RequestOptions) {
-  const { userId = OWNER_USER_ID, ...rest } = init ?? {}
-  const headers = new Headers(rest.headers)
+// 로그인한 사용자 ID를 `X-User-Id`로 보낸다. 서버가 그 사용자의 매장·역할로 권한을 판단한다
+// (사장님만: 발주 승인·전달·취소, 검수 승인·반려·종료, 변경 이력 / 직원만: 확정 취소, 재검수).
+async function send(path: string, init?: RequestInit) {
+  const userId = currentUserId()
+  if (!userId) throw new Error('로그인이 필요해요')
+  const headers = new Headers(init?.headers)
   headers.set('X-User-Id', userId)
-  if (rest.body && !(rest.body instanceof FormData))
+  if (init?.body && !(init.body instanceof FormData))
     headers.set('Content-Type', 'application/json')
-  return fetch(`/api${path}`, { ...rest, headers, cache: 'no-store' })
+  return fetch(`/api${path}`, { ...init, headers, cache: 'no-store' })
 }
 
 async function failure(response: Response) {
@@ -24,10 +22,7 @@ async function failure(response: Response) {
   )
 }
 
-export async function request<T>(
-  path: string,
-  init?: RequestOptions,
-): Promise<T> {
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await send(path, init)
   if (!response.ok) throw await failure(response)
   if (response.status === 204) return null as T
@@ -35,7 +30,7 @@ export async function request<T>(
 }
 
 // 사진 원본처럼 JSON이 아닌 응답. 사용자 헤더가 필요해 <img src>로 바로 쓸 수 없다.
-export async function requestBlob(path: string, init?: RequestOptions) {
+export async function requestBlob(path: string, init?: RequestInit) {
   const response = await send(path, init)
   if (!response.ok) throw await failure(response)
   return response.blob()

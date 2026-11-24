@@ -1,12 +1,12 @@
+import { currentUserId } from '../session'
+
 // 상품 API 호출 (API.md 항목 1 `POST /products`, 항목 1-2 `GET /products` / US-08 / F-01)
 // 필드 이름은 DATA-MODEL.md 상품 모델 그대로 쓴다.
 
 // Next.js의 rewrite가 개발·배포 환경 모두 /api를 백엔드로 전달한다.
 const API_BASE_URL = '/api'
 
-// API.md 공통 규칙 [제안]: 로그인 방식이 정해질 때까지 X-User-Id 헤더에 시드 사용자 ID를 넣는다.
-// 1 = DATA-MODEL.md 시드 #1 (가) store_id=1, 사장님
-const CURRENT_USER_ID = '1'
+// 로그인한 사용자 ID를 X-User-Id 헤더로 보낸다 (src/session.ts).
 
 export type Product = {
   id: number
@@ -41,6 +41,8 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const userId = currentUserId()
+  if (!userId) throw new ApiError('UNKNOWN_ERROR', '로그인이 필요해요')
   let response: Response
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
@@ -48,7 +50,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       cache: 'no-store',
       headers: {
         'Content-Type': 'application/json',
-        'X-User-Id': CURRENT_USER_ID,
+        'X-User-Id': userId,
         ...init?.headers,
       },
     })

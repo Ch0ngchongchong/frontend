@@ -17,6 +17,7 @@ import {
 import { useProducts } from '../api/workspace'
 import type { Product } from '../api/products'
 import { ExceptionPhotoList } from '../components/InspectionPhotos.tsx'
+import { userKey } from '../session'
 
 // 예외 건 승인 (사장님) 화면 (PRD 5절 / US-06 / F-06)
 // 사장 승인 대기 → 승인 → 재고 반영 완료 / 사장 승인 대기 → 반려(사유 필수) → 직원 재검수 또는 검수 종료
@@ -92,13 +93,13 @@ function ExceptionApproval() {
 
   async function removeFromList(updated: Inspection) {
     await mutate<Inspection[]>(
-      ['inspections', '1', '사장 승인 대기'],
+      ['inspections', userKey(), '사장 승인 대기'],
       (current) => current?.filter((item) => item.id !== updated.id),
       { revalidate: false },
     )
-    void mutate(['inspections', '1', '사장 승인 대기'])
-    void mutate(['inspections', '1'])
-    void mutate(['inspection-history', '1', updated.id])
+    void mutate(['inspections', userKey(), '사장 승인 대기'])
+    void mutate(['inspections', userKey()])
+    void mutate(['inspection-history', userKey(), updated.id])
   }
 
   async function approve() {
@@ -249,8 +250,13 @@ function ExceptionApproval() {
                     </tr>
                   ))}
                   {selected.missing_order_lines.map((missing) => (
-                    <tr key={`missing-${missing.product_id}`} className="row-differs">
-                      <td className="code">{productName(missing.product_id)}</td>
+                    <tr
+                      key={`missing-${missing.product_id}`}
+                      className="row-differs"
+                    >
+                      <td className="code">
+                        {productName(missing.product_id)}
+                      </td>
                       <td className="muted">{missing.order_quantity}</td>
                       <td>미입고</td>
                     </tr>

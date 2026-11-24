@@ -5,6 +5,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { useSWRConfig } from 'swr'
 import {
@@ -36,6 +37,8 @@ import { useProducts } from '../api/workspace'
 import type { Product } from '../api/products'
 import { checkLine, countFlagged, type ReadField } from '../inspectionChecks'
 import { ExceptionPhotoList } from '../components/InspectionPhotos.tsx'
+import { userKey } from '../session'
+import { useWorkspace } from '../App'
 
 function errorMessage(error: unknown) {
   return error instanceof Error
@@ -164,6 +167,8 @@ function AddLineForm({
           <input
             id="line-add-quantity"
             type="number"
+            inputMode="numeric"
+            enterKeyHint="next"
             min="1"
             step="1"
             value={quantity}
@@ -186,6 +191,8 @@ function AddLineForm({
           <input
             id="line-add-price"
             type="number"
+            inputMode="numeric"
+            enterKeyHint="done"
             min="0"
             step="1"
             value={unitPrice}
@@ -226,6 +233,8 @@ function ReviewDetail({
   catalogAvailable: boolean
 }) {
   const { mutate } = useSWRConfig()
+  // 확정 취소·재검수는 서버가 직원 계정만 허용하고, 승인·반려·종료는 사장님이 예외 승인에서 한다.
+  const staff = useWorkspace().session?.role === '직원'
   const inventory = useInventory()
   const photos = useExceptionPhotos(inspection.id)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -305,16 +314,16 @@ function ReviewDetail({
   }, [])
 
   async function cacheInspection(updated: Inspection) {
-    await mutate(['inspection', '1', updated.id], updated, {
+    await mutate(['inspection', userKey(), updated.id], updated, {
       revalidate: false,
     })
     await mutate<Inspection[]>(
-      ['inspections', '1'],
+      ['inspections', userKey()],
       (current) =>
         current?.map((item) => (item.id === updated.id ? updated : item)),
       { revalidate: false },
     )
-    void mutate(['inspections', '1'])
+    void mutate(['inspections', userKey()])
   }
 
   async function saveLine(line: Inspection['lines'][number]) {
@@ -369,8 +378,8 @@ function ReviewDetail({
 
   // 확정·확정 취소·재검수는 사장님 승인 목록과 변경 이력도 바꾼다.
   function refreshOwnerViews() {
-    void mutate(['inspections', '1', '사장 승인 대기'])
-    void mutate(['inspection-history', '1', inspection.id])
+    void mutate(['inspections', userKey(), '사장 승인 대기'])
+    void mutate(['inspection-history', userKey(), inspection.id])
   }
 
   async function confirm() {
@@ -401,8 +410,8 @@ function ReviewDetail({
             ? '사장님 승인 대기로 넘어갔어요. 재고는 바뀌지 않았어요.'
             : `확정 결과: ${updated.status}`,
       )
-      void mutate(['purchase-orders', '1'])
-      void mutate(['purchase-order', '1', updated.purchase_order_id])
+      void mutate(['purchase-orders', userKey()])
+      void mutate(['purchase-order', userKey(), updated.purchase_order_id])
       void inventory.mutate()
     } catch (failure) {
       setError(errorMessage(failure))
@@ -484,7 +493,7 @@ function ReviewDetail({
       setPending(null)
       if (uploaded > 0) {
         void photos.mutate()
-        void mutate(['inspection-history', '1', inspection.id])
+        void mutate(['inspection-history', userKey(), inspection.id])
       }
     }
   }
@@ -586,6 +595,7 @@ function ReviewDetail({
                         }
                       >
                         <td
+                          data-label="명세서 원본 값 (OCR)"
                           className={
                             checks.ruleFail
                               ? 'cell-fail'
@@ -651,6 +661,7 @@ function ReviewDetail({
                           )}
                         </td>
                         <td
+                          data-label="우리 상품 · 후보"
                           className={
                             line.product_id === null ? 'cell-check' : undefined
                           }
@@ -707,10 +718,11 @@ function ReviewDetail({
                             ))}
                           </div>
                         </td>
-                        <td className="numeric muted">
+                        <td className="numeric muted" data-label="발주 수량">
                           {line.order_quantity ?? '없음'}
                         </td>
                         <td
+                          data-label="확인 수량"
                           className={
                             line.quantity === null || uncertain('quantity')
                               ? 'cell-check'
@@ -719,6 +731,8 @@ function ReviewDetail({
                         >
                           <input
                             type="number"
+                            inputMode="numeric"
+                            enterKeyHint="done"
                             min="1"
                             step="1"
                             aria-label={`${line.line_no}행 수량`}
@@ -744,12 +758,15 @@ function ReviewDetail({
                             </small>
                           )}
                         </td>
-                        <td className="conversion-cell">
+                        <td
+                          className="conversion-cell"
+                          data-label="기준 단위 환산"
+                        >
                           {line.base_quantity === null
                             ? '환산값 없음'
                             : `${line.base_quantity} ${products.find((product) => product.id === line.product_id)?.base_unit ?? '기준 단위'}`}
                         </td>
-                        <td>
+                        <td data-label="대조 결과">
                           <span>{line.match_status}</span>
                           {ready && (
                             <button
@@ -910,7 +927,20 @@ function ReviewDetail({
             </p>
           )}
           {result && <p role="status">{result}</p>}
-          {awaitingOwner ? (
+          {(awaitingOwner || rejected) && !staff ? (
+            <>
+              <p className="card-note">
+                {awaitingOwner
+                  ? '확정 취소는 직원 계정에서 할 수 있어요. 승인·반려는 예외 승인 화면에서 해 주세요.'
+                  : '재검수는 직원 계정에서 시작할 수 있어요.'}
+              </p>
+              {awaitingOwner && (
+                <Link className="button-secondary" href="/approval">
+                  예외 승인으로 가기
+                </Link>
+              )}
+            </>
+          ) : awaitingOwner ? (
             <button
               type="button"
               className="button-secondary"

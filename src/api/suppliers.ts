@@ -1,5 +1,6 @@
 import useSWR from 'swr'
 import { request } from './client'
+import { userKey } from '../session'
 
 export type Supplier = {
   id: string | number
@@ -10,10 +11,10 @@ export type Supplier = {
   since: string
 }
 export type SupplierInput = Omit<Supplier, 'id'>
-export const supplierKey = ['suppliers', '1']
+export const supplierKey = () => ['suppliers', userKey()]
 
 export function useSuppliers() {
-  return useSWR(supplierKey, () => request<Supplier[]>('/suppliers'), {
+  return useSWR(supplierKey(), () => request<Supplier[]>('/suppliers'), {
     revalidateOnMount: true,
   })
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { CardHead, Icon } from './ui.tsx'
 import type { Product } from '../api/products'
+import { currentUserId } from '../session'
 
 export type OrderLimit = {
   id: number
@@ -48,9 +49,11 @@ export function findOverLimits(
 }
 
 async function request(path = '', init?: RequestInit) {
+  const userId = currentUserId()
+  if (!userId) throw new Error('로그인이 필요해요')
   const response = await fetch(`${ENDPOINT}${path}`, {
     ...init,
-    headers: { 'Content-Type': 'application/json', 'X-User-Id': '1' },
+    headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
   })
   if (!response.ok) {
     const body = await response.json().catch(() => null)

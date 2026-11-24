@@ -2,14 +2,19 @@ import { useState, type ChangeEvent, type FormEvent } from 'react'
 import { Icon, PageHeader } from '../components/ui.tsx'
 import { useNav } from '../components/nav.ts'
 import type { Profile } from '../profile.ts'
+import type { Role } from '../session.ts'
 
 function MyPage({
   profile,
+  role,
   onSave,
+  onSignOut,
 }: {
   profile: Profile
+  role: Role
   // 브라우저에 저장한다. 실패하면 예외를 던진다.
   onSave: (profile: Profile) => void
+  onSignOut: () => void
 }) {
   const [values, setValues] = useState(profile)
   const [message, setMessage] = useState('')
@@ -94,12 +99,14 @@ function MyPage({
             </span>
             <div>
               <h2 id="profile-title">{profile.name}</h2>
-              <p>{profile.store}</p>
+              <p>
+                {profile.store} · {role} 계정
+              </p>
             </div>
           </div>
           <p className="mypage-note">
-            프로필은 이 브라우저에만 저장돼요. 계정과 매장 데이터에는 반영되지
-            않습니다.
+            프로필은 이 브라우저에 계정별로 저장돼요. 서버의 계정과 매장
+            데이터에는 반영되지 않습니다.
           </p>
           <form onSubmit={submit} className="mypage-form">
             <div className="profile-photo-upload">
@@ -215,16 +222,44 @@ function MyPage({
           </h2>
           <p className="mypage-note">필요한 업무 화면으로 바로 이동해요.</p>
           <div className="mypage-links">
-            <button type="button" onClick={() => nav.navigate('products')}>
-              <Icon name="box" /> 상품 관리 <span>›</span>
-            </button>
-            <button type="button" onClick={() => nav.navigate('calendar')}>
-              <Icon name="truck" /> 입고 달력 <span>›</span>
-            </button>
-            <button type="button" onClick={() => nav.navigate('history')}>
-              <Icon name="clock" /> 변경 이력 <span>›</span>
-            </button>
+            {role === '직원' ? (
+              <>
+                <button type="button" onClick={() => nav.navigate('upload')}>
+                  <Icon name="camera" /> 명세서 촬영 <span>›</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => nav.navigate('inspection')}
+                >
+                  <Icon name="review" /> 입고 확인 <span>›</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button type="button" onClick={() => nav.navigate('products')}>
+                  <Icon name="box" /> 상품 관리 <span>›</span>
+                </button>
+                <button type="button" onClick={() => nav.navigate('calendar')}>
+                  <Icon name="truck" /> 입고 달력 <span>›</span>
+                </button>
+                <button type="button" onClick={() => nav.navigate('history')}>
+                  <Icon name="clock" /> 변경 이력 <span>›</span>
+                </button>
+              </>
+            )}
           </div>
+          <h2 className="mypage-section-title mypage-account-title">계정</h2>
+          <p className="mypage-note">
+            {role} 계정으로 로그인했어요. 다른 역할로 바꾸려면 로그아웃해
+            주세요.
+          </p>
+          <button
+            type="button"
+            className="button-secondary mypage-logout"
+            onClick={onSignOut}
+          >
+            <Icon name="logout" /> 로그아웃
+          </button>
         </aside>
       </div>
     </>

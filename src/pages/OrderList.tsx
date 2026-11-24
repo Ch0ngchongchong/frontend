@@ -20,6 +20,9 @@ import OrderLimits, {
   type OrderLimit,
   type OverLimit,
 } from '../components/OrderLimits.tsx'
+import { userKey } from '../session'
+import { useWorkspace } from '../App'
+import { COPYABLE_STATUSES, copyText, orderText } from '../orderText'
 
 // 상태별로 사장님이 다음에 할 수 있는 일 (US-01·US-02). 취소는 '발주 초안'에서만
 const NEXT_ACTION: Record<string, string | undefined> = {
@@ -51,6 +54,16 @@ function OrderList() {
   const [pending, setPending] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  // 발주 복사: 방금 복사한 발주 번호 (버튼에 잠깐 '복사했어요'를 보인다)
+  const { profile } = useWorkspace()
+  const [copiedId, setCopiedId] = useState<number | null>(null)
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(
+    () => () => {
+      if (copyTimer.current) clearTimeout(copyTimer.current)
+    },
+    [],
+  )
   const orders = orderData ?? []
   const products = productData ?? []
   const loading = !orderData && !orderError
@@ -81,7 +94,7 @@ function OrderList() {
 
   async function updateOrderCache(order: PurchaseOrder) {
     await mutate<PurchaseOrder[]>(
-      ['purchase-orders', '1'],
+      ['purchase-orders', userKey()],
       (current) => {
         const existing = current ?? []
         return existing.some((item) => item.id === order.id)
@@ -90,10 +103,10 @@ function OrderList() {
       },
       { revalidate: false },
     )
-    await mutate(['purchase-order', '1', order.id], order, {
+    await mutate(['purchase-order', userKey(), order.id], order, {
       revalidate: false,
     })
-    void mutate(['purchase-orders', '1'])
+    void mutate(['purchase-orders', userKey()])
   }
 
   async function saveOrder() {
@@ -151,7 +164,7 @@ function OrderList() {
     try {
       const order = await changeOrderStatus(id, action)
       await updateOrderCache(order)
-      if (action === 'mark-delivered') void mutate(['inspections', '1'])
+      if (action === 'mark-delivered') void mutate(['inspections', userKey()])
       setSuccess(`발주 #${order.id}: ${order.status}`)
     } catch (cause) {
       setActionError(
@@ -173,6 +186,31 @@ function OrderList() {
     setActionError(null)
     setSuccess(null)
     setLimitReview({ orderId: order.id, items })
+  }
+
+  function textFor(order: PurchaseOrder) {
+    return orderText(order, products, {
+      name: profile.store,
+      contact: profile.contact,
+    })
+  }
+
+  async function copyOrder(order: PurchaseOrder) {
+    setActionError(null)
+    setSuccess(null)
+    try {
+      await copyText(textFor(order))
+      setCopiedId(order.id)
+      if (copyTimer.current) clearTimeout(copyTimer.current)
+      copyTimer.current = setTimeout(() => setCopiedId(null), 2500)
+      setSuccess(
+        `발주 #${order.id} 내용을 복사했어요. 카카오톡·문자에 붙여 넣어 공급처에 보내 주세요`,
+      )
+    } catch {
+      setActionError(
+        '복사하지 못했어요. 상세의 발주 내용을 길게 눌러 직접 복사해 주세요',
+      )
+    }
   }
 
   const count = (status: string) =>
@@ -274,6 +312,17 @@ function OrderList() {
                           >
                             상세
                           </button>
+                          {COPYABLE_STATUSES.includes(order.status) && (
+                            <button
+                              type="button"
+                              className="button-small"
+                              aria-label={`발주 #${order.id} 내용 복사`}
+                              onClick={() => void copyOrder(order)}
+                            >
+                              <Icon name="copy" size={16} />
+                              {copiedId === order.id ? '복사했어요' : '복사'}
+                            </button>
+                          )}
                           {next && (
                             <button
                               type="button"
@@ -344,6 +393,41 @@ function OrderList() {
                       )
                     })}
                   </ul>
+                  <div className="order-copy">
+                    <p className="field-label" id="order-copy-label">
+                      공급처에 보낼 발주 내용
+                    </p>
+                    {COPYABLE_STATUSES.includes(selectedOrder.status) ? (
+                      <>
+                        <pre
+                          className="order-copy-preview"
+                          aria-labelledby="order-copy-label"
+                        >
+                          {textFor(selectedOrder)}
+                        </pre>
+                        <p className="card-note">
+                          복사해서 카카오톡·문자에 붙여 넣어 보내고, 보낸 뒤
+                          &lsquo;전달 완료 표시&rsquo;를 눌러 주세요.
+                        </p>
+                        <button
+                          type="button"
+                          className="button-secondary"
+                          onClick={() => void copyOrder(selectedOrder)}
+                        >
+                          <Icon name="copy" size={18} />
+                          {copiedId === selectedOrder.id
+                            ? '복사했어요'
+                            : '발주 내용 복사'}
+                        </button>
+                      </>
+                    ) : (
+                      <p className="card-note">
+                        {selectedOrder.status === '발주 취소'
+                          ? '취소한 발주는 보낼 수 없어요.'
+                          : '승인한 뒤에 복사해서 공급처에 보낼 수 있어요.'}
+                      </p>
+                    )}
+                  </div>
                 </>
               )}
             </section>
@@ -412,6 +496,7 @@ function OrderList() {
                       aria-label={`수량 ${index + 1}`}
                       className={`input-qty${overLimit ? ' input-warning' : ''}`}
                       type="number"
+                      inputMode="numeric"
                       disabled={pending !== null}
                       min="1"
                       step="1"

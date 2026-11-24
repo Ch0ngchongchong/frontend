@@ -12,6 +12,7 @@ import {
 import { request } from '../api/client'
 import { useInspections, type Inspection } from '../api/inspections'
 import { useOrders } from '../api/workspace'
+import { userKey } from '../session'
 
 function ReceiptUpload() {
   const router = useRouter()
@@ -105,9 +106,11 @@ function ReceiptUpload() {
         },
       )
       await Promise.all([
-        mutate(['inspection', '1', updated.id], updated, { revalidate: false }),
+        mutate(['inspection', userKey(), updated.id], updated, {
+          revalidate: false,
+        }),
         mutate(
-          ['inspections', '1'],
+          ['inspections', userKey()],
           (current: Inspection[] | undefined) =>
             current?.some((item) => item.id === updated.id)
               ? current.map((item) => (item.id === updated.id ? updated : item))
@@ -118,8 +121,8 @@ function ReceiptUpload() {
       setFileMessage(
         '명세서를 업로드했어요. 서버에서 판독 결과를 확인하고 있어요.',
       )
-      void mutate(['inspections', '1'])
-      void mutate(['inspection', '1', updated.id])
+      void mutate(['inspections', userKey()])
+      void mutate(['inspection', userKey(), updated.id])
     } catch (uploadError) {
       setFileError(true)
       setFileMessage(
