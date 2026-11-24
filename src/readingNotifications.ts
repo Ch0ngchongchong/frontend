@@ -91,6 +91,12 @@ export function dismissReadingToast() {
   setState({ ...state, toastId: null })
 }
 
+// 로그아웃하면 앞 사용자의 알림과 기준 상태를 지운다.
+export function resetReadingNotifications() {
+  lastStatus.clear()
+  setState(EMPTY)
+}
+
 export function describeReadingNotification(item: ReadingNotification) {
   return item.outcome === 'done'
     ? {

@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
-import { SCREENS, type ScreenKey } from './screens.ts'
+import { SCREENS, screensFor, type ScreenKey } from './screens.ts'
+import { Icon } from './ui.tsx'
 import type { Profile } from '../profile.ts'
+import type { Role } from '../session.ts'
 import {
   describeReadingNotification,
   markAllReadingNotificationsRead,
@@ -11,10 +13,27 @@ import {
 
 // 모든 매장 화면이 함께 쓰는 틀: 흰 배경 + 위쪽 바(로고 · 화면 탭 · 매장/사용자) + 본문
 // URL 경로별 화면은 Next.js가 렌더링하고, 이 틀은 탐색·알림·사용자 상태를 유지한다.
+// 탭은 로그인한 역할이 열 수 있는 화면만 보인다 (client-meeting-2 피드백 7).
+// 직원은 휴대폰을 한 손으로 쓰므로(피드백 6·9) 위쪽 탭 대신 엄지가 닿는 아래 탭을 두고,
+// 본문을 휴대폰 폭 한 줄로 놓는다.
+
+const STAFF_TABS: {
+  key: string
+  label: string
+  icon: 'home' | 'camera' | 'review' | 'user'
+}[] = [
+  { key: '/staff', label: '오늘 할 일', icon: 'home' },
+  { key: '/upload', label: '명세서 촬영', icon: 'camera' },
+  { key: '/inspection', label: '입고 확인', icon: 'review' },
+  { key: '/profile', label: '내 정보', icon: 'user' },
+]
 
 type AppShellProps = {
   // 탭이 아닌 화면(거래처 페이지)이면 null
   current: ScreenKey | null
+  // 지금 보이는 경로 (직원 아래 탭의 현재 위치 표시)
+  path: string
+  role: Role
   onNavigate: (screen: ScreenKey) => void
   // 로고를 누르면 시작 화면(우리 가게 지도)으로 돌아간다
   onHome: () => void
@@ -25,6 +44,8 @@ type AppShellProps = {
 
 function AppShell({
   current,
+  path,
+  role,
   onNavigate,
   onHome,
   onProfile,
@@ -55,12 +76,19 @@ function AppShell({
     tabs.scrollLeft +=
       activeBox.left - tabsBox.left - (tabsBox.width - activeBox.width) / 2
   }, [current])
-  const role =
-    SCREENS.find((screen) => screen.key === current)?.role ?? '사장님'
+  const staff = role === '직원'
+  // 직원이 쓰는 화면이면 본문 16px·버튼 48px (사장님이 열어도 같다)
+  const staffSizing =
+    staff || SCREENS.find((screen) => screen.key === current)?.role === '직원'
+  function openStaffTab(key: string) {
+    if (key === '/staff') onHome()
+    else if (key === '/profile') onProfile()
+    else onNavigate(key.slice(1) as ScreenKey)
+  }
 
   return (
     <>
-      <header className="topbar">
+      <header className={`topbar${staff ? ' topbar-staff' : ''}`}>
         <button
           type="button"
           className="brand brand-button"
@@ -83,22 +111,24 @@ function AppShell({
           </span>
         </button>
 
-        <nav className="tabs" aria-label="화면" ref={tabsRef}>
-          {SCREENS.map((screen) => {
-            const active = screen.key === current
-            return (
-              <button
-                type="button"
-                key={screen.key}
-                className={`tab${active ? ' tab-active' : ''}`}
-                aria-current={active ? 'page' : undefined}
-                onClick={() => onNavigate(screen.key)}
-              >
-                {screen.label}
-              </button>
-            )
-          })}
-        </nav>
+        {!staff && (
+          <nav className="tabs" aria-label="화면" ref={tabsRef}>
+            {screensFor(role).map((screen) => {
+              const active = screen.key === current
+              return (
+                <button
+                  type="button"
+                  key={screen.key}
+                  className={`tab${active ? ' tab-active' : ''}`}
+                  aria-current={active ? 'page' : undefined}
+                  onClick={() => onNavigate(screen.key)}
+                >
+                  {screen.label}
+                </button>
+              )
+            })}
+          </nav>
+        )}
 
         <div className="topbar-user">
           <button
@@ -124,7 +154,7 @@ function AppShell({
             type="button"
             className="user-chip"
             onClick={onProfile}
-            aria-label="마이페이지"
+            aria-label={`마이페이지 (${role} 계정)`}
           >
             <span className="avatar" aria-hidden="true">
               {profile.photo ? (
@@ -202,9 +232,31 @@ function AppShell({
         </dialog>
       )}
 
-      <main className={`page${role === '직원' ? ' page-staff' : ''}`}>
+      <main
+        className={`page${staffSizing ? ' page-staff' : ''}${staff ? ' page-mobile' : ''}`}
+      >
         {children}
       </main>
+
+      {staff && (
+        <nav className="bottom-nav" aria-label="직원 화면">
+          {STAFF_TABS.map((tab) => {
+            const active = path === tab.key
+            return (
+              <button
+                type="button"
+                key={tab.key}
+                className={`bottom-tab${active ? ' bottom-tab-active' : ''}`}
+                aria-current={active ? 'page' : undefined}
+                onClick={() => openStaffTab(tab.key)}
+              >
+                <Icon name={tab.icon} size={24} />
+                <span>{tab.label}</span>
+              </button>
+            )
+          })}
+        </nav>
+      )}
     </>
   )
 }

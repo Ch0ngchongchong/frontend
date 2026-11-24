@@ -4153,3 +4153,504 @@ input {
     gap: 8px;
   }
 }
+
+/* ---------- 로그인 · 역할별 화면 (client-meeting-2 피드백 6·7·9) ---------- */
+
+/* 로그인 상태를 확인하거나 역할별 화면으로 옮기는 동안 */
+.app-splash {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: calc(var(--space) * 2);
+  min-height: 100vh;
+  color: var(--text-muted);
+}
+
+.login-page {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: calc(var(--space) * 3) calc(var(--space) * 2);
+  background: var(--background-map);
+}
+
+.login-card {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space) * 2);
+  width: min(480px, 100%);
+  padding: calc(var(--space) * 4) calc(var(--space) * 3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--background);
+  box-shadow: var(--shadow-card);
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--space) * 1.25);
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.login-card h1 {
+  font-size: 26px;
+}
+
+.login-note,
+.login-footnote {
+  color: var(--text-muted);
+}
+
+.login-footnote {
+  font-size: 14px;
+}
+
+.login-accounts {
+  display: grid;
+  gap: calc(var(--space) * 1.5);
+}
+
+/* 사장님 화면 기준 큰 버튼 (본문 18px, 높이 56px 이상) */
+.login-account {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--space) * 2);
+  width: 100%;
+  min-height: 88px;
+  padding: calc(var(--space) * 2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  color: var(--text);
+  background: var(--surface-strong);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.login-account:hover,
+.login-account:focus-visible {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.login-account:focus-visible {
+  outline: 3px solid var(--accent-ring);
+  outline-offset: 2px;
+}
+
+.login-account > span:last-child {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 24px;
+}
+
+.login-account-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.login-account-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.login-account-text strong {
+  font-size: var(--font-owner);
+}
+
+.login-account-text small {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.access-denied {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: calc(var(--space) * 2);
+}
+
+.access-denied h1 {
+  font-size: 22px;
+}
+
+.mypage-account-title {
+  margin-top: calc(var(--space) * 3);
+}
+
+.mypage-logout {
+  margin-top: calc(var(--space) * 1.5);
+}
+
+/* 링크로 된 버튼, 아이콘이 붙은 버튼 */
+a.button-primary,
+a.button-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.button-small:has(svg),
+.button-secondary:has(svg) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* ---------- 직원 휴대폰 화면: 한 손 조작 ---------- */
+
+/* 직원은 위쪽 탭 대신 아래 탭을 쓴다 */
+.topbar-staff {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+/* 본문을 휴대폰 폭 한 줄로 두고, 아래 탭에 가리지 않게 띄운다 */
+.page.page-mobile {
+  max-width: 640px;
+  padding-bottom: calc(96px + env(safe-area-inset-bottom));
+}
+
+.page-mobile .layout-main,
+.page-mobile .layout-review,
+.page-mobile .layout-split {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.page-mobile .button-primary,
+.page-mobile .card-form .button-primary {
+  width: 100%;
+}
+
+.bottom-nav {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+  background: var(--surface-strong);
+  box-shadow: 0 -8px 24px rgba(20, 22, 31, 0.06);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+
+@media (min-width: 641px) {
+  .bottom-nav {
+    border-right: 1px solid var(--line);
+    border-left: 1px solid var(--line);
+    border-radius: 18px 18px 0 0;
+  }
+}
+
+.bottom-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 60px;
+  border: 0;
+  border-radius: 12px;
+  color: var(--text-muted);
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bottom-tab-active {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.bottom-tab:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
+}
+
+/* 판독 알림을 아래 탭 위로 올린다 */
+body[data-role='staff'] .reading-toast-region {
+  bottom: calc(88px + env(safe-area-inset-bottom));
+}
+
+/* 직원 첫 화면: 오늘 할 일 */
+.staff-home {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space) * 2.5);
+}
+
+.staff-hello p {
+  color: var(--text-muted);
+  font-size: 15px;
+}
+
+.staff-hello h1 {
+  font-size: 24px;
+}
+
+.staff-cta {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--space) * 2);
+  min-height: 88px;
+  padding: calc(var(--space) * 2) calc(var(--space) * 2.5);
+  border-radius: var(--radius-card);
+  color: #ffffff;
+  background: var(--primary);
+  text-decoration: none;
+  box-shadow: var(--shadow-card);
+}
+
+.staff-cta:hover,
+.staff-cta:focus-visible {
+  background: var(--accent);
+}
+
+.staff-cta:focus-visible {
+  outline: 3px solid var(--accent-ring);
+  outline-offset: 3px;
+}
+
+.staff-cta > span:last-child {
+  margin-left: auto;
+  font-size: 26px;
+}
+
+.staff-cta-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.staff-cta-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.staff-cta-text strong {
+  font-size: 19px;
+}
+
+.staff-cta-text small {
+  opacity: 0.8;
+  font-size: 14px;
+}
+
+.staff-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space);
+}
+
+.staff-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space);
+}
+
+.staff-group-head h2 {
+  font-size: 19px;
+}
+
+.staff-empty {
+  padding: calc(var(--space) * 2);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-control);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.staff-tasks {
+  display: grid;
+  gap: var(--space);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.staff-task {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--space) * 1.5);
+  min-height: 72px;
+  padding: calc(var(--space) * 1.75) calc(var(--space) * 2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  color: var(--text);
+  background: var(--background);
+  text-decoration: none;
+}
+
+.staff-task:hover,
+.staff-task:focus-visible {
+  border-color: var(--accent);
+}
+
+.staff-task:focus-visible {
+  outline: 3px solid var(--accent-ring);
+  outline-offset: 2px;
+}
+
+.staff-task-main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.staff-task-main strong {
+  overflow: hidden;
+  max-width: 100%;
+  font-size: 17px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.staff-task-main small {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.staff-task-action {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.staff-task-action span {
+  font-size: 22px;
+}
+
+.staff-done {
+  text-align: center;
+}
+
+/* 입고 확인 표: 휴대폰 폭에서는 가로로 밀지 않고 줄마다 카드로 쌓는다 */
+@media (max-width: 767px) {
+  .review-table {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .review-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .review-table,
+  .review-table tbody,
+  .review-table tr,
+  .review-table td {
+    display: block;
+  }
+
+  .review-table tr {
+    margin-bottom: calc(var(--space) * 1.5);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-control);
+    overflow: hidden;
+  }
+
+  .review-table td,
+  .review-table td.conversion-cell {
+    padding: calc(var(--space) * 1.5) calc(var(--space) * 2);
+    white-space: normal;
+  }
+
+  .review-table td:last-child {
+    border-bottom: 0;
+  }
+
+  .review-table td.numeric {
+    text-align: left;
+  }
+
+  .review-table td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 6px;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .review-scroll-wrap .table-scroll {
+    max-height: none;
+    overflow: visible;
+    margin: 0;
+  }
+
+  .inspection-page .review-table select,
+  .inspection-page .review-table input {
+    width: 100%;
+    max-width: none;
+    min-height: 48px;
+    font-size: 16px;
+  }
+
+  .review-table td .button-secondary {
+    width: 100%;
+    margin-top: var(--space);
+  }
+}
+
+/* ---------- 발주 복사 (client-meeting-2 피드백 15) ---------- */
+.order-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space);
+  margin-top: calc(var(--space) * 2);
+}
+
+.order-copy-preview {
+  width: 100%;
+  margin: 0;
+  padding: calc(var(--space) * 2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--background-map);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: all;
+}

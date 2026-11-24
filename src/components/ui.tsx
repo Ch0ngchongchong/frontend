@@ -185,6 +185,10 @@ type IconName =
   | 'truck'
   | 'progress'
   | 'review'
+  | 'home'
+  | 'user'
+  | 'copy'
+  | 'logout'
 
 const ICON_PATHS: Record<IconName, ReactNode> = {
   list: (
@@ -272,4 +276,18 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
       <path d="m20 20-4.2-4.2" />
     </>
   ),
+  home: <path d="M4 11 12 4l8 7M6 9.5V20h12V9.5M10 20v-5h4v5" />,
+  user: (
+    <>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" />
+    </>
+  ),
+  copy: (
+    <>
+      <rect x="8" y="8" width="12" height="12" rx="2" />
+      <path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" />
+    </>
+  ),
+  logout: <path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10" />,
 }
