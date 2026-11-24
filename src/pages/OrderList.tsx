@@ -22,6 +22,7 @@ import OrderLimits, {
   type OrderLimit,
   type OverLimit,
 } from '../components/OrderLimits.tsx'
+import { won } from '../components/AmountLimit.tsx'
 import { RequestError } from '../api/client'
 import { userKey } from '../session'
 import { useWorkspace } from '../App'
@@ -56,6 +57,8 @@ function OrderList() {
     isValidating: detailLoading,
   } = useOrder(selectedOrderId)
   const [supplier, setSupplier] = useState('')
+  // 금액 한도(원). 비워 두면 서버가 금액을 보지 않는다 (R7)
+  const [amountLimit, setAmountLimit] = useState('')
   const [pending, setPending] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -136,6 +139,16 @@ function OrderList() {
       setActionError('수량은 1 이상의 정수로 입력해 주세요')
       return
     }
+    const amountLimitText = amountLimit.trim()
+    const amountAlertThreshold =
+      amountLimitText === '' ? null : Number(amountLimitText)
+    if (
+      amountAlertThreshold !== null &&
+      (!Number.isSafeInteger(amountAlertThreshold) || amountAlertThreshold < 1)
+    ) {
+      setActionError('금액 한도는 1원 이상의 정수로 입력하거나 비워 주세요')
+      return
+    }
     setPending('create')
     try {
       const order = await createOrder({
@@ -144,9 +157,11 @@ function OrderList() {
           product_id: Number(line.productId),
           quantity: Number(line.quantity),
         })),
+        amount_alert_threshold: amountAlertThreshold,
       })
       await updateOrderCache(order)
       setSupplier('')
+      setAmountLimit('')
       setLines([{ id: nextLineId, productId: '', quantity: '' }])
       setNextLineId((current) => current + 1)
       setSuccess(`발주 #${order.id}을 저장했어요`)
@@ -403,6 +418,12 @@ function OrderList() {
               {selectedOrder && (
                 <>
                   <p>공급처: {selectedOrder.supplier ?? '—'}</p>
+                  <p>
+                    금액 한도:{' '}
+                    {selectedOrder.amount_alert_threshold != null
+                      ? won(selectedOrder.amount_alert_threshold)
+                      : '정하지 않음'}
+                  </p>
                   <StatusPill status={selectedOrder.status} />
                   <ul>
                     {selectedOrder.lines.map((line, index) => {
@@ -474,6 +495,27 @@ function OrderList() {
               disabled={pending !== null}
               onChange={(event) => setSupplier(event.target.value)}
             />
+          </div>
+          <div className="field">
+            <label htmlFor="order-amount-limit">
+              금액 한도 <span className="muted">(선택, 원)</span>
+            </label>
+            <input
+              id="order-amount-limit"
+              type="number"
+              inputMode="numeric"
+              min="1"
+              step="1"
+              placeholder="예: 300000"
+              value={amountLimit}
+              disabled={pending !== null}
+              aria-describedby="order-amount-limit-help"
+              onChange={(event) => setAmountLimit(event.target.value)}
+            />
+            <small id="order-amount-limit-help">
+              입고 확인 때 최종 금액이 이 값을 넘으면 사장님 승인을 받아요. 비워
+              두면 금액은 보지 않아요.
+            </small>
           </div>
 
           {productError && (

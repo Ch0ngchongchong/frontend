@@ -17,6 +17,10 @@ import {
 import { useProducts } from '../api/workspace'
 import type { Product } from '../api/products'
 import { ExceptionPhotoList } from '../components/InspectionPhotos.tsx'
+import {
+  AMOUNT_OVER_LIMIT_LABEL,
+  AmountOverLimitNotice,
+} from '../components/AmountLimit.tsx'
 import { userKey } from '../session'
 
 // 예외 건 승인 (사장님) 화면 (PRD 5절 / US-06 / F-06)
@@ -43,6 +47,8 @@ function kindsOf(inspection: Inspection) {
     if (label) kinds.add(label)
   }
   if (inspection.missing_order_lines.length > 0) kinds.add('미입고')
+  // 줄 단위가 아니라 검수 건 전체의 최종 금액으로 정해지는 예외 (R7)
+  if (inspection.amount_over_limit) kinds.add(AMOUNT_OVER_LIMIT_LABEL)
   return [...kinds]
 }
 
@@ -207,6 +213,8 @@ function ExceptionApproval() {
                 </Pill>
               ))}
             </div>
+
+            <AmountOverLimitNotice inspection={selected} />
 
             <figure className="staff-reason">
               <figcaption>직원이 적은 예외 사유</figcaption>

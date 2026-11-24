@@ -37,6 +37,10 @@ import { useProducts } from '../api/workspace'
 import type { Product } from '../api/products'
 import { checkLine, countFlagged, type ReadField } from '../inspectionChecks'
 import { ExceptionPhotoList } from '../components/InspectionPhotos.tsx'
+import {
+  AMOUNT_OVER_LIMIT_LABEL,
+  AmountOverLimitNotice,
+} from '../components/AmountLimit.tsx'
 import { userKey } from '../session'
 import { useWorkspace } from '../App'
 
@@ -268,6 +272,11 @@ function ReviewDetail({
   const differs = inspection.lines.filter(
     (line) => line.match_status !== '일치' && line.match_status !== '확인 필요',
   ).length
+  // 줄은 발주와 모두 같은데 최종 금액만 금액 한도를 넘어 예외 건이 되는 경우 (R7)
+  const amountOnly =
+    inspection.amount_over_limit === true &&
+    differs === 0 &&
+    inspection.missing_order_lines.length === 0
   const lineChecks = inspection.lines.map(checkLine)
   const flagged = countFlagged(lineChecks)
   const flaggedTotal = flagged.uncertain + flagged.ruleFail
@@ -853,6 +862,16 @@ function ReviewDetail({
                   : '확정하기 전에는 재고가 바뀌지 않아요'
             }
           />
+          {compared && inspection.amount_over_limit && (
+            <div className="amount-limit-block">
+              <div className="kind-row">
+                <Pill tone="owner" icon="alert">
+                  {AMOUNT_OVER_LIMIT_LABEL}
+                </Pill>
+              </div>
+              <AmountOverLimitNotice inspection={inspection} />
+            </div>
+          )}
           {ready && (
             <>
               <div className="remaining">
@@ -862,7 +881,9 @@ function ReviewDetail({
               <p className="card-note">
                 {inspection.all_match
                   ? '발주와 모두 일치해요. 확정하면 재고에 반영돼요.'
-                  : '발주와 다른 내용이 있어요. 확정하면 사장님 승인 대기로 넘어가고 재고는 유지돼요.'}
+                  : amountOnly
+                    ? '발주와 일치하지만 최종 금액이 금액 한도를 넘었어요. 확정하면 사장님 승인 대기로 넘어가고 재고는 유지돼요.'
+                    : '발주와 다른 내용이 있어요. 확정하면 사장님 승인 대기로 넘어가고 재고는 유지돼요.'}
               </p>
               {flaggedTotal > 0 && (
                 <p className="card-note">

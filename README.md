@@ -29,6 +29,8 @@ API 요청은 로그인한 계정의 사용자 ID를 `X-User-Id` 헤더로 보�
 
 발주 한도 경고(US-01 R7): 한 발주 안에서 같은 상품의 수량을 합쳐 한도와 비교합니다. 한도는 상품명과 단위가 상품의 이름·기준 단위와 모두 같을 때만 적용됩니다. 발주 작성 중에는 수량을 넣은 줄 아래에 경고하고, 발주 초안의 `승인`을 누르면 화면에서 아는 초과 상품·수량을 경고 창으로 먼저 보여 줍니다. 화면에서 초과를 찾지 못하면(한도 조회 실패 포함) `POST /purchase-orders/{id}/approve`를 본문 없이 보내고, 서버가 `error.code: QUANTITY_LIMIT_EXCEEDED`로 거절하면 서버 메시지와 함께 같은 경고 창을 띄웁니다. 경고 창에서 `확인했어요, 승인`을 누르면 `{ "acknowledge_quantity_limit": true }`를 보내 승인합니다.
 
+금액 한도(R7, 백엔드 `feat/r7-quantity-limit-and-amount-alert` 계약): 발주 작성의 `금액 한도` 칸(선택, 원)을 `POST /purchase-orders` 본문의 `amount_alert_threshold`로 보냅니다. 비우면 `null`이고, 값은 1 이상의 정수여야 합니다(아니면 서버가 `INVALID_AMOUNT_ALERT_THRESHOLD`로 거절). 발주 응답의 `amount_alert_threshold`는 발주 상세에 표시합니다. 검수 응답의 `final_amount`(확정하면 반영될 금액)가 한도를 넘으면 서버가 `amount_over_limit: true`·`all_match: false`로 예외 건으로 분류하며, 입고 확인·예외 승인 화면은 이를 `금액 한도 초과` 예외 종류로 표시하고 최종 금액·한도·초과 금액을 보여 줍니다(한도 값은 `GET /purchase-orders/{id}`에서 읽음). 두 필드를 보내지 않는 서버에서는 표시하지 않습니다.
+
 거래처 계약은 `GET/POST /suppliers`, `PATCH/DELETE /suppliers/{id}`입니다. GET은 배열, POST/PATCH는 저장된 객체, DELETE는 204를 반환합니다. 필드는 `{ id, name, category, deliveryDays, orderCutoff, since }`이며 생성·수정에는 id를 제외합니다. 이름은 필수, 나머지 입력은 선택이며 since는 날짜 문자열입니다. 현재 배포 API에는 이 경로가 없어 오류와 빈 목록을 표시하고 저장 실패 시 입력을 유지합니다. 서버 성공 후에만 목록·홈 지도·연결 건수를 갱신합니다. 샘플 거래처·가짜 품목·주문 일정은 표시하지 않습니다.
 
 발주 작성의 `상품 추가`는 입력 행을 추가하고 `−`는 해당 행을 삭제합니다(최소 1행 유지). 등록 상품 ID와 1 이상의 정수 수량으로 저장합니다. API는 단위를 받지 않으므로 기준 단위 수량만 전송합니다. 승인·전달·취소 후 목록과 상태별 건수를 갱신하고, 전달 완료 시 새 검수 건을 조회합니다.
