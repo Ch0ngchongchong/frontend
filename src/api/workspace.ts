@@ -45,9 +45,22 @@ export function createOrder(input: {
 
 export function changeOrderStatus(
   id: number,
-  action: 'approve' | 'mark-delivered' | 'cancel',
+  action: 'mark-delivered' | 'cancel',
 ) {
   return request<PurchaseOrder>(`/purchase-orders/${id}/${action}`, {
     method: 'POST',
+  })
+}
+
+// 서버가 발주 한도를 검사한다. 넘은 상품이 있으면 QUANTITY_LIMIT_EXCEEDED로 거절하고,
+// 사장님이 경고를 확인한 뒤에는 acknowledge_quantity_limit: true를 보내 승인한다 (US-01 R7).
+export const QUANTITY_LIMIT_EXCEEDED = 'QUANTITY_LIMIT_EXCEEDED'
+
+export function approveOrder(id: number, acknowledgeQuantityLimit = false) {
+  return request<PurchaseOrder>(`/purchase-orders/${id}/approve`, {
+    method: 'POST',
+    ...(acknowledgeQuantityLimit && {
+      body: JSON.stringify({ acknowledge_quantity_limit: true }),
+    }),
   })
 }
